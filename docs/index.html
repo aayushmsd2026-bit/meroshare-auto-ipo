@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>MeroShare Bot Settings</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #dde1e6;
+    --accent: #1f6feb; --accent-text: #ffffff; --ok: #1a7f37; --err: #cf222e; --field: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --text: #e6e9ee; --muted: #9aa4b1; --line: #2b313a;
+      --accent: #4c8dff; --accent-text: #0b0e12; --ok: #3fb950; --err: #f85149; --field: #0f1216;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: .9rem; color: var(--muted); margin: 10px 0 4px; }
+  input, select { width: 100%; padding: 10px 12px; font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 8px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: end; }
+  button { margin-top: 14px; padding: 10px 16px; font: inherit; font-weight: 600; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); }
+  button.danger { background: transparent; color: var(--err); border-color: var(--err); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs button { margin: 0; padding: 8px 12px; font-weight: 500; background: transparent; color: var(--text); border-color: var(--line); }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .msg { margin-top: 12px; font-size: .95rem; min-height: 1.2em; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
+  .hint { font-size: .85rem; color: var(--muted); margin: 6px 0 0; }
+  .people { margin: 0; padding: 0; list-style: none; }
+  .people li { padding: 8px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+  .people li:last-child { border-bottom: 0; }
+  .hidden { display: none; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>MeroShare Bot Settings</h1>
+  <p class="lead">Change passwords, add family members, and set up email, all without opening GitHub. Everything is encrypted in this browser before it's saved.</p>
+
+  <section class="card" id="connect">
+    <h2>1. Connect (once per device)</h2>
+    <label for="token">GitHub access token</label>
+    <input id="token" type="password" autocomplete="off" placeholder="github_pat_...">
+    <p class="hint">See the README for how to make one. It's stored only in this browser.</p>
+    <button id="connectBtn">Connect</button>
+    <button id="forgetBtn" class="secondary hidden">Forget token on this device</button>
+    <div class="msg" id="connectMsg"></div>
+  </section>
+
+  <div id="app" class="hidden">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="pw" aria-selected="true">Change password</button>
+      <button role="tab" data-tab="person">Add / edit person</button>
+      <button role="tab" data-tab="people">People</button>
+      <button role="tab" data-tab="email">Email</button>
+      <button role="tab" data-tab="test">Test run</button>
+    </div>
+
+    <section class="card tab" id="tab-pw">
+      <h2>Change a MeroShare password</h2>
+      <p class="hint">First change it on meroshare.cdsc.com.np, then save the same new password here.</p>
+      <label for="pwPerson">Person</label>
+      <select id="pwPerson"></select>
+      <label for="pwNew">New password</label>
+      <input id="pwNew" type="password" autocomplete="new-password">
+      <label for="pwNew2">Type it again</label>
+      <input id="pwNew2" type="password" autocomplete="new-password">
+      <button id="pwSave">Save password</button>
+      <div class="msg" id="pwMsg"></div>
+    </section>
+
+    <section class="card tab hidden" id="tab-person">
+      <h2>Add or update a person</h2>
+      <p class="hint">Saved details can't be read back (GitHub keeps them write-only), so to edit someone, fill in all their details again using the same name.</p>
+      <label for="pName">Name</label>
+      <input id="pName" placeholder="Mom">
+      <div class="row">
+        <div><label for="pDp">DP code</label><input id="pDp" inputmode="numeric" placeholder="13700"></div>
+        <div><label for="pUser">MeroShare username</label><input id="pUser" inputmode="numeric" autocomplete="off"></div>
+      </div>
+      <label for="pPass">MeroShare password</label>
+      <input id="pPass" type="password" autocomplete="new-password">
+      <div class="row">
+        <div><label for="pPin">Transaction PIN</label><input id="pPin" type="password" inputmode="numeric" autocomplete="off"></div>
+        <div><label for="pCrn">CRN number</label><input id="pCrn" autocomplete="off"></div>
+      </div>
+      <label for="pBank">Bank (optional, only if several are linked)</label>
+      <input id="pBank" placeholder="Nabil">
+      <label for="pEmail">Their email (optional, for their own password alerts)</label>
+      <input id="pEmail" type="email">
+      <div class="row">
+        <div><label for="pMaxAmt">Max Rs per IPO (undersubscribed only)</label><input id="pMaxAmt" inputmode="numeric" placeholder="50000"></div>
+        <div><label for="pRightMax">Max right share kitta (optional)</label><input id="pRightMax" inputmode="numeric" placeholder="no limit"></div>
+      </div>
+      <button id="pSave">Save person</button>
+      <div class="msg" id="pMsg"></div>
+    </section>
+
+    <section class="card tab hidden" id="tab-people">
+      <h2>People the bot applies for</h2>
+      <ul class="people" id="peopleList"></ul>
+      <div class="msg" id="peopleMsg"></div>
+    </section>
+
+    <section class="card tab hidden" id="tab-email">
+      <h2>Email alerts</h2>
+      <p class="hint">Uses a Gmail account to send. You'll need a Gmail <b>app password</b> (Google Account → Security → 2-Step Verification → App passwords), not your normal Gmail password.</p>
+      <label for="eUser">Send from (Gmail address)</label>
+      <input id="eUser" type="email">
+      <label for="ePass">Gmail app password</label>
+      <input id="ePass" type="password" autocomplete="off" placeholder="16 letters">
+      <label for="eTo">Send alerts to (separate several with commas)</label>
+      <input id="eTo" placeholder="you@gmail.com">
+      <button id="eSave">Save email settings</button>
+      <div class="msg" id="eMsg"></div>
+    </section>
+
+    <section class="card tab hidden" id="tab-test">
+      <h2>Test run</h2>
+      <p class="hint">Logs in to every account and checks open issues without applying. The result is emailed to you in about 2 minutes.</p>
+      <button id="testBtn">Start test run</button>
+      <div class="msg" id="testMsg"></div>
+    </section>
+  </div>
+</main>
+
+<script src="vendor/libsodium.js"></script>
+<script src="vendor/libsodium-wrappers.js"></script>
+<script>
+(() => {
+  // Repo: taken from the GitHub Pages address (<owner>.github.io/<repo>/), else the default below.
+  const DEFAULT_REPO = "aayushmsd2026-bit/meroshare-auto-ipo";
+  const REPO = location.hostname.endsWith(".github.io") && location.pathname.split("/")[1]
+    ? `${location.hostname.split(".")[0]}/${location.pathname.split("/")[1]}`
+    : DEFAULT_REPO;
+  const API = `https://api.github.com/repos/${REPO}`;
+  const $ = (id) => document.getElementById(id);
+
+  const store = {
+    get() { try { return localStorage.getItem("gh_token") || ""; } catch { return ""; } },
+    set(v) { try { localStorage.setItem("gh_token", v); } catch {} },
+    clear() { try { localStorage.removeItem("gh_token"); } catch {} },
+  };
+  let token = "";
+  let publicKey = null;
+
+  function say(id, text, ok = true) { const el = $(id); el.textContent = text; el.className = "msg " + (ok ? "ok" : "err"); }
+  const keyOf = (name) => name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+  async function gh(path, opts = {}) {
+    const r = await fetch(API + path, {
+      ...opts,
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(opts.body ? { "Content-Type": "application/json" } : {}) },
+    });
+    if (!r.ok) {
+      let m = ""; try { m = (await r.json()).message; } catch {}
+      if (r.status === 401) m = "token is wrong or expired";
+      if (r.status === 403 || r.status === 404) m = (m || "not allowed") + " - check the token has Secrets and Actions read/write for this repo";
+      throw new Error(m || `GitHub error ${r.status}`);
+    }
+    const text = await r.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  async function putSecret(name, value) {
+    await sodium.ready;
+    if (!publicKey) publicKey = await gh("/actions/secrets/public-key");
+    const sealed = sodium.crypto_box_seal(
+      sodium.from_string(String(value)),
+      sodium.from_base64(publicKey.key, sodium.base64_variants.ORIGINAL)
+    );
+    await gh(`/actions/secrets/${name}`, {
+      method: "PUT",
+      body: JSON.stringify({ encrypted_value: sodium.to_base64(sealed, sodium.base64_variants.ORIGINAL), key_id: publicKey.key_id }),
+    });
+  }
+
+  async function listSecrets() {
+    const res = await gh("/actions/secrets?per_page=100");
+    return res.secrets.map((s) => s.name);
+  }
+
+  async function refreshPeople() {
+    const names = await listSecrets();
+    const people = names.filter((n) => n.startsWith("MS_ACCOUNT_")).map((n) => n.slice(11)).sort();
+    $("pwPerson").innerHTML = people.length
+      ? people.map((k) => `<option value="${k}">${k.replace(/_/g, " ")}</option>`).join("")
+      : `<option value="">No people yet - add one first</option>`;
+    $("peopleList").innerHTML = people.length ? "" : "<li>No people yet.</li>";
+    for (const k of people) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span>${k.replace(/_/g, " ")}</span>`;
+      const b = document.createElement("button");
+      b.className = "danger"; b.textContent = "Remove"; b.style.margin = "0";
+      b.onclick = async () => {
+        if (!confirm(`Stop applying for ${k} and delete their saved details?`)) return;
+        try {
+          await gh(`/actions/secrets/MS_ACCOUNT_${k}`, { method: "DELETE" });
+          await gh(`/actions/secrets/MS_PASSWORD_${k}`, { method: "DELETE" }).catch(() => {});
+          say("peopleMsg", `${k} removed.`); refreshPeople();
+        } catch (e) { say("peopleMsg", e.message, false); }
+      };
+      li.appendChild(b); $("peopleList").appendChild(li);
+    }
+    const hasEmail = names.includes("EMAIL_USER") && names.includes("EMAIL_APP_PASSWORD") && names.includes("EMAIL_TO");
+    $("eMsg").textContent = hasEmail ? "Email is set up. Save again only to change it." : "Email is not set up yet.";
+    $("eMsg").className = "msg " + (hasEmail ? "ok" : "err");
+  }
+
+  async function busy(btn, fn) { btn.disabled = true; try { await fn(); } finally { btn.disabled = false; } }
+
+  async function connect() {
+    try {
+      await refreshPeople();
+      store.set(token);
+      $("connect").querySelector("h2").textContent = "Connected";
+      $("token").parentElement.querySelectorAll("label, input, .hint, #connectBtn").forEach((el) => el.classList.add("hidden"));
+      $("forgetBtn").classList.remove("hidden");
+      $("app").classList.remove("hidden");
+      say("connectMsg", `Connected to ${REPO}.`);
+    } catch (e) { say("connectMsg", e.message, false); }
+  }
+
+  $("connectBtn").onclick = (e) => busy(e.target, async () => { token = $("token").value.trim(); if (token) await connect(); });
+  $("forgetBtn").onclick = () => { store.clear(); location.reload(); };
+
+  document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x === b));
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + b.dataset.tab));
+  });
+
+  $("pwSave").onclick = (e) => busy(e.target, async () => {
+    const k = $("pwPerson").value, p = $("pwNew").value;
+    if (!k) return say("pwMsg", "Add a person first.", false);
+    if (!p) return say("pwMsg", "Enter the new password.", false);
+    if (p !== $("pwNew2").value) return say("pwMsg", "The two passwords don't match.", false);
+    try { await putSecret(`MS_PASSWORD_${k}`, p); $("pwNew").value = $("pwNew2").value = ""; say("pwMsg", `Saved. The bot will use the new password for ${k.replace(/_/g, " ")} from the next run.`); }
+    catch (err) { say("pwMsg", err.message, false); }
+  });
+
+  $("pSave").onclick = (e) => busy(e.target, async () => {
+    const name = $("pName").value.trim(), k = keyOf(name);
+    const acc = { name, dp: $("pDp").value.trim(), username: $("pUser").value.trim(), pin: $("pPin").value.trim(), crn: $("pCrn").value.trim() };
+    if (!k || !/^[A-Z]/.test(k)) return say("pMsg", "Enter a name that starts with a letter.", false);
+    for (const [f, label] of [["dp", "DP code"], ["username", "username"], ["pin", "PIN"], ["crn", "CRN"]]) if (!acc[f]) return say("pMsg", `Enter the ${label}.`, false);
+    if (!$("pPass").value) return say("pMsg", "Enter the MeroShare password.", false);
+    if ($("pBank").value.trim()) acc.bank = $("pBank").value.trim();
+    if ($("pEmail").value.trim()) acc.email = $("pEmail").value.trim();
+    if ($("pMaxAmt").value.trim()) acc.max_amount = Number($("pMaxAmt").value);
+    if ($("pRightMax").value.trim()) acc.right_max_kitta = Number($("pRightMax").value);
+    try {
+      await putSecret(`MS_ACCOUNT_${k}`, JSON.stringify(acc));
+      await putSecret(`MS_PASSWORD_${k}`, $("pPass").value);
+      ["pName", "pDp", "pUser", "pPass", "pPin", "pCrn", "pBank", "pEmail", "pMaxAmt", "pRightMax"].forEach((id) => $(id).value = "");
+      say("pMsg", `Saved ${name}. Start a test run to check the login works.`);
+      refreshPeople();
+    } catch (err) { say("pMsg", err.message, false); }
+  });
+
+  $("eSave").onclick = (e) => busy(e.target, async () => {
+    const u = $("eUser").value.trim(), p = $("ePass").value.replace(/\s+/g, ""), t = $("eTo").value.trim();
+    if (!u || !p || !t) return say("eMsg", "Fill in all three fields.", false);
+    try {
+      await putSecret("EMAIL_USER", u); await putSecret("EMAIL_APP_PASSWORD", p); await putSecret("EMAIL_TO", t);
+      $("ePass").value = ""; say("eMsg", "Email saved. Start a test run - you should get an email in about 2 minutes.");
+    } catch (err) { say("eMsg", err.message, false); }
+  });
+
+  $("testBtn").onclick = (e) => busy(e.target, async () => {
+    try {
+      await gh("/actions/workflows/auto-ipo.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: "main", inputs: { dry_run: true, apply_on: "last_day" } }) });
+      say("testMsg", "Test run started. Check your email in about 2 minutes.");
+    } catch (err) { say("testMsg", err.message, false); }
+  });
+
+  token = store.get();
+  if (token) { $("token").value = token; connect(); }
+})();
+</script>
+</body>
+</html>

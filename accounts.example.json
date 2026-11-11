@@ -7,17 +7,9 @@
     "pin": "1234",
     "crn": "CRN-FROM-YOUR-BANK",
     "bank": "",
-    "max_kitta": null,
+    "email": "",
     "max_amount": 50000,
-    "enabled": true
-  },
-  {
-    "name": "Mom",
-    "dp": "11200",
-    "username": "00987654",
-    "password": "moms-password",
-    "pin": "4321",
-    "crn": "MOMS-CRN",
+    "right_max_kitta": null,
     "enabled": true
   }
 ]

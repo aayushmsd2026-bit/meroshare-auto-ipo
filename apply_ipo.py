@@ -1,16 +1,21 @@
-"""Automatically apply for equity IPOs on MeroShare for several accounts.
+"""Automatically apply for IPOs, FPOs and right shares on MeroShare for several accounts.
 
-Accounts come from the ACCOUNTS_JSON environment variable (a GitHub secret),
-or from accounts.json when running locally. See README.md.
+Accounts are read from GitHub secrets (managed with the web page in docs/):
+  MS_ACCOUNT_<KEY>   JSON with dp, username, pin, crn, ... (everything except the password)
+  MS_PASSWORD_<KEY>  the MeroShare password
+The whole secrets object reaches this script as ALL_SECRETS. The older single
+ACCOUNTS_JSON secret, and a local accounts.json file, also work. See README.md.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import smtplib
 import sys
 import time
 from datetime import date, datetime
+from email.message import EmailMessage
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -36,47 +41,60 @@ HEADERS = {
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
 # "last_day" (default) applies only on the closing day. "any_day" applies as soon as an issue is open.
 APPLY_ON = os.getenv("APPLY_ON", "last_day")
+# Warn about expiring passwords/accounts when this many days or fewer are left.
+WARN_DAYS = int(os.getenv("WARN_DAYS", "10"))
+PAGE_URL = os.getenv("PAGE_URL", "")
 
 LOG_LINES: list[str] = []
 
 
 def log(msg: str) -> None:
+    """Logs are public on a public repo, so they never contain names, usernames or numbers."""
     print(msg, flush=True)
     LOG_LINES.append(msg)
 
 
 # ---------------------------------------------------------------- filtering
 
-def is_wanted_issue(issue: dict) -> tuple[bool, str]:
-    """Only ordinary-share IPOs for the general public. No mutual funds, debentures, FPOs, rights, or reserved quotas."""
+def classify_issue(issue: dict) -> tuple[str | None, str]:
+    """Return (kind, reason). kind is "IPO", "FPO", "RIGHT" or None (skip).
+
+    Applied: ordinary-share IPOs and FPOs for the general public, and right shares.
+    Skipped: mutual funds, debentures/bonds, reserved quotas (foreign employment, locals, employees), others.
+    """
     share_type = (issue.get("shareTypeName") or "").upper()
     group = (issue.get("shareGroupName") or "").lower()
     sub_group = (issue.get("subGroup") or "").lower()
     name = (issue.get("companyName") or "").lower()
 
-    if share_type != "IPO":
-        return False, f"share type is {share_type or 'unknown'}, not IPO"
     if "mutual" in group or "fund" in group or "scheme" in name:
-        return False, "mutual fund"
+        return None, "mutual fund"
     if "debenture" in group or "debenture" in name or "bond" in group:
-        return False, "debenture/bond"
-    if "ordinary" not in group:
-        return False, f"share group is {issue.get('shareGroupName')}"
+        return None, "debenture/bond"
+    if "RIGHT" in share_type or "right" in sub_group:
+        return "RIGHT", "right share"
+    if share_type not in ("IPO", "FPO"):
+        return None, f"share type is {share_type or 'unknown'}"
+    if group and "ordinary" not in group:
+        return None, f"share group is {issue.get('shareGroupName')}"
     if sub_group and "general public" not in sub_group:
-        return False, f"reserved quota ({issue.get('subGroup')})"
-    return True, "equity IPO for general public"
+        return None, f"reserved quota ({issue.get('subGroup')})"
+    return share_type, f"equity {share_type} for general public"
 
 
-def parse_date(value: str | None) -> date | None:
-    if not value:
+def parse_date(value) -> date | None:
+    if value in (None, ""):
         return None
+    if isinstance(value, (int, float)):  # epoch millis
+        return datetime.fromtimestamp(value / 1000, NPT).date()
+    value = str(value).strip()
     for fmt in ("%b %d, %Y %I:%M:%S %p", "%b %d, %Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
         try:
-            return datetime.strptime(value.strip(), fmt).date()
+            return datetime.strptime(value, fmt).date()
         except ValueError:
             continue
     try:
-        return datetime.fromisoformat(value.strip()).date()
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
     except ValueError:
         return None
 
@@ -87,17 +105,46 @@ def is_apply_day(issue: dict, today: date) -> tuple[bool, str]:
         return True, "APPLY_ON=any_day"
     if close is None:
         return False, f"could not read close date {issue.get('issueCloseDate')!r}"
-    if close == today:
+    if close <= today:
         return True, "closes today"
     return False, f"closes {close.isoformat()}, waiting for the last day"
 
 
+def expiry_warnings(*sources: dict, today: date) -> list[str]:
+    """Find password / account / demat expiry dates in MeroShare responses."""
+    labels = {"password": "MeroShare password", "account": "MeroShare account", "demat": "DEMAT account"}
+    found: dict[str, date] = {}
+    for src in sources:
+        for key, val in (src or {}).items():
+            k = key.lower()
+            if "expir" not in k or isinstance(val, bool):
+                continue
+            d = parse_date(val)
+            if not d:
+                continue
+            what = next((v for p, v in labels.items() if p in k), "MeroShare " + key)
+            found[what] = min(d, found.get(what, d))
+    out = []
+    for what, d in sorted(found.items()):
+        days = (d - today).days
+        if days < 0:
+            out.append(f"{what} expired on {d.isoformat()}")
+        elif days <= WARN_DAYS:
+            out.append(f"{what} expires in {days} day(s) on {d.isoformat()}")
+    return out
+
+
 # ---------------------------------------------------------------- MeroShare client
+
+class LoginError(RuntimeError):
+    pass
+
 
 class MeroShare:
     def __init__(self) -> None:
         self.s = requests.Session()
         self.s.headers.update(HEADERS)
+        self.auth_data: dict = {}
 
     def _req(self, method: str, path: str, **kw) -> requests.Response:
         for attempt in range(4):
@@ -114,6 +161,13 @@ class MeroShare:
                 time.sleep(wait)
         raise RuntimeError("unreachable")
 
+    @staticmethod
+    def _message(r: requests.Response) -> str:
+        try:
+            return r.json().get("message") or r.text[:200]
+        except ValueError:
+            return r.text[:200]
+
     def dp_id(self, dp: str) -> int:
         r = self._req("GET", "/meroShare/capital/")
         r.raise_for_status()
@@ -121,20 +175,23 @@ class MeroShare:
         for item in r.json():
             if str(item.get("code")) == dp or str(item.get("id")) == dp or dp in (item.get("name") or "").lower():
                 return int(item["id"])
-        raise ValueError(f"Depository participant '{dp}' not found. Use the DP code shown on MeroShare login, e.g. 13700.")
+        raise LoginError(f"Depository participant '{dp}' not found. Use the DP code from the MeroShare login page, e.g. 13700.")
 
-    def login(self, dp: str, username: str, password: str) -> None:
+    def login(self, dp: str, username: str, password: str) -> dict:
         body = {"clientId": self.dp_id(dp), "username": str(username), "password": password}
         r = self._req("POST", "/meroShare/auth/", json=body)
         if r.status_code != 200 or not r.headers.get("Authorization"):
-            msg = r.json().get("message") if r.headers.get("content-type", "").startswith("application/json") else r.text[:200]
-            raise RuntimeError(f"login failed: {msg}")
+            raise LoginError(f"login failed: {self._message(r)}")
         data = r.json() if r.content else {}
+        self.auth_data = data
         if data.get("passwordExpired") or data.get("changePassword"):
-            raise RuntimeError("MeroShare password expired - log in on the website and change it, then update the secret")
-        if data.get("accountExpired") or data.get("dematExpired"):
-            raise RuntimeError("MeroShare/DEMAT account expired - renew it with your DP")
+            raise LoginError("MeroShare password has expired")
+        if data.get("accountExpired"):
+            raise LoginError("MeroShare account has expired - renew it with your DP")
+        if data.get("dematExpired"):
+            raise LoginError("DEMAT account has expired - renew it with your DP")
         self.s.headers["Authorization"] = r.headers["Authorization"]
+        return data
 
     def own_detail(self) -> dict:
         r = self._req("GET", "/meroShare/ownDetail/")
@@ -176,7 +233,7 @@ class MeroShare:
             hint = bank_hint.lower()
             matches = [b for b in banks if hint in (b.get("name") or "").lower() or hint == str(b.get("code"))]
             if not matches:
-                raise RuntimeError(f"bank '{bank_hint}' not linked; linked: {[b.get('name') for b in banks]}")
+                raise RuntimeError(f"bank '{bank_hint}' is not linked; linked banks: {[b.get('name') for b in banks]}")
             bank = matches[0]
         r = self._req("GET", f"/meroShare/bank/{bank['id']}")
         r.raise_for_status()
@@ -189,30 +246,48 @@ class MeroShare:
 
     def apply(self, payload: dict) -> tuple[bool, str]:
         r = self._req("POST", "/meroShare/applicantForm/share/apply", json=payload)
+        return r.status_code in (200, 201), self._message(r)
+
+
+# ---------------------------------------------------------------- accounts
+
+def _secret_accounts(secrets: dict) -> list[dict]:
+    accounts = []
+    for key, value in secrets.items():
+        if not key.startswith("MS_ACCOUNT_"):
+            continue
+        k = key[len("MS_ACCOUNT_"):]
         try:
-            msg = r.json().get("message", r.text[:200])
-        except ValueError:
-            msg = r.text[:200]
-        return r.status_code in (200, 201), msg
+            acc = json.loads(value)
+        except json.JSONDecodeError:
+            log(f"!! secret {key} is not valid JSON - skipped")
+            continue
+        acc.setdefault("name", k.title())
+        acc["password"] = secrets.get(f"MS_PASSWORD_{k}", acc.get("password"))
+        acc["_key"] = k
+        accounts.append(acc)
+    return accounts
 
-
-# ---------------------------------------------------------------- main logic
 
 def load_accounts() -> list[dict]:
-    raw = os.getenv("ACCOUNTS_JSON")
-    if not raw:
-        path = ROOT / "accounts.json"
-        if not path.exists():
-            sys.exit("No accounts: set the ACCOUNTS_JSON secret (or create accounts.json locally).")
-        raw = path.read_text()
-    accounts = json.loads(raw)
-    if isinstance(accounts, dict):
-        accounts = accounts.get("accounts", [])
-    return [a for a in accounts if a.get("enabled", True)]
+    accounts: list[dict] = []
+    secrets = json.loads(os.getenv("ALL_SECRETS") or "{}")
+    accounts += _secret_accounts(secrets)
+
+    raw = os.getenv("ACCOUNTS_JSON") or secrets.get("ACCOUNTS_JSON")
+    if not raw and not accounts and (ROOT / "accounts.json").exists():
+        raw = (ROOT / "accounts.json").read_text()
+    if raw:
+        extra = json.loads(raw)
+        accounts += extra.get("accounts", []) if isinstance(extra, dict) else extra
+
+    if not accounts:
+        sys.exit("No accounts found. Add people with the web page (docs/index.html) or the ACCOUNTS_JSON secret.")
+    return [a for a in accounts if a.get("enabled", True) is not False]
 
 
 def load_subscription_data() -> dict:
-    """Optional: subscription.json lets you tell the bot how subscribed an issue is, keyed by scrip."""
+    """Optional: subscription.json tells the bot how subscribed an issue is, keyed by scrip."""
     path = ROOT / "subscription.json"
     if not path.exists():
         return {}
@@ -220,23 +295,59 @@ def load_subscription_data() -> dict:
     return {k.upper(): v for k, v in data.items() if not k.startswith("_")}
 
 
-def process_account(acc: dict, subs: dict, today: date) -> list[str]:
-    label = acc.get("name") or acc.get("username")
-    results: list[str] = []
-    log(f"\n=== {label} ===")
+def right_share_kitta(issue: dict, detail: dict, acc: dict) -> int:
+    """Right shares: apply for the full entitlement (the highest amount MeroShare allows)."""
+    for src in (detail, issue):
+        for key in ("eligibleKitta", "rightShareEligibleKitta", "eligibleUnit", "maxUnit"):
+            if src.get(key):
+                kitta = int(float(src[key]))
+                if acc.get("right_max_kitta"):
+                    kitta = min(kitta, int(acc["right_max_kitta"]))
+                return kitta
+    raise RuntimeError("could not find the entitled kitta for this right share")
+
+
+# ---------------------------------------------------------------- main logic
+
+class Report:
+    def __init__(self) -> None:
+        self.applied: list[str] = []
+        self.errors: list[str] = []
+        self.warnings: dict[str, list[str]] = {}  # person name -> warnings
+
+
+def process_account(idx: int, acc: dict, subs: dict, today: date, report: Report) -> None:
+    person = acc.get("name") or f"Account {idx}"
+    log(f"\n=== Account #{idx} ===")
+    for field in ("dp", "username", "password", "pin", "crn"):
+        if not acc.get(field):
+            raise RuntimeError(f"'{field}' is missing - fix it on the settings page")
+
     ms = MeroShare()
-    ms.login(acc["dp"], acc["username"], acc["password"])
+    try:
+        auth = ms.login(acc["dp"], acc["username"], acc["password"])
+    except LoginError as e:
+        msg = str(e)
+        if "expired" in msg.lower() or "credential" in msg.lower() or "password" in msg.lower():
+            report.warnings.setdefault(person, []).append(
+                f"{msg}. Log in at https://meroshare.cdsc.com.np, set a new password, then save it on the settings page."
+            )
+        raise
     me = ms.own_detail()
+    for w in expiry_warnings(auth, me, today=today):
+        log(f"   warning: {w}")
+        report.warnings.setdefault(person, []).append(w)
+
     issues = ms.applicable_issues()
     log(f"   {len(issues)} open issue(s) visible")
 
     bank_cache: tuple[int, dict] | None = None
     for issue in issues:
         scrip = issue.get("scrip", "?")
-        title = f"{scrip} ({issue.get('companyName')}, {issue.get('subGroup') or issue.get('shareGroupName')})"
+        title = f"{scrip} ({issue.get('companyName')}, {issue.get('shareTypeName')}, {issue.get('subGroup') or issue.get('shareGroupName')})"
 
-        ok, why = is_wanted_issue(issue)
-        if not ok:
+        kind, why = classify_issue(issue)
+        if not kind:
             log(f" - skip {title}: {why}")
             continue
         if issue.get("action") in ("edit", "inProcess", "reapply") or issue.get("statusName") not in (None, "", "CREATE_APPROVE"):
@@ -248,19 +359,24 @@ def process_account(acc: dict, subs: dict, today: date) -> list[str]:
             continue
 
         detail = ms.issue_detail(issue["companyShareId"])
-        sub = subs.get(scrip.upper(), {})
-        decision = choose_kitta(
-            min_unit=detail.get("minUnit", 10),
-            max_unit=detail.get("maxUnit", 10),
-            multiple_of=detail.get("multipleOf", 10),
-            price_per_unit=detail.get("sharePerUnit", 100) or 100,
-            subscription_times=sub.get("times"),
-            applicants=sub.get("applicants"),
-            units_offered=sub.get("units_offered"),
-            account_max_kitta=acc.get("max_kitta"),
-            account_max_amount=acc.get("max_amount"),
-        )
-        log(f" + {title}: applying {decision.kitta} kitta - {decision.reason}")
+        if kind == "RIGHT":
+            kitta, reason = right_share_kitta(issue, detail, acc), "right share - full entitlement"
+        else:
+            sub = subs.get(scrip.upper(), {})
+            d = choose_kitta(
+                min_unit=detail.get("minUnit", 10),
+                max_unit=detail.get("maxUnit", 10),
+                multiple_of=detail.get("multipleOf", 10),
+                price_per_unit=detail.get("sharePerUnit", 100) or 100,
+                subscription_times=sub.get("times"),
+                applicants=sub.get("applicants"),
+                units_offered=sub.get("units_offered"),
+                account_max_kitta=acc.get("max_kitta"),
+                account_max_amount=acc.get("max_amount"),
+            )
+            kitta, reason = d.kitta, d.reason
+        price = float(detail.get("sharePerUnit") or 100)
+        log(f" + {title}: applying {kitta} kitta (Rs {kitta * price:,.0f}) - {reason}")
 
         if bank_cache is None:
             bank_cache = ms.bank_account(acc.get("bank"))
@@ -273,62 +389,103 @@ def process_account(acc: dict, subs: dict, today: date) -> list[str]:
             "customerId": bank["id"],
             "accountBranchId": bank["accountBranchId"],
             "accountTypeId": bank.get("accountTypeId"),
-            "appliedKitta": str(decision.kitta),
+            "appliedKitta": str(kitta),
             "crnNumber": acc["crn"],
             "transactionPIN": str(acc["pin"]),
             "companyShareId": str(issue["companyShareId"]),
             "bankId": bank_id,
         }
+        line = f"{person}: {scrip} ({kind}) - {kitta} kitta, Rs {kitta * price:,.0f}"
         if DRY_RUN:
             log("   DRY_RUN: not submitting")
-            results.append(f"{label}: {scrip} {decision.kitta} kitta (dry run)")
+            report.applied.append(line + " [test run, not submitted]")
             continue
         success, msg = ms.apply(payload)
         log(f"   {'APPLIED' if success else 'FAILED'}: {msg}")
-        results.append(f"{label}: {scrip} {decision.kitta} kitta - {'applied' if success else 'FAILED: ' + msg}")
-        if not success:
-            raise RuntimeError(f"apply failed for {scrip}: {msg}")
-    return results
+        if success:
+            report.applied.append(line)
+        else:
+            report.errors.append(f"{person}: {scrip} failed - {msg}")
 
 
-def notify(text: str) -> None:
+# ---------------------------------------------------------------- notifications
+
+def send_email(to: list[str], subject: str, body: str) -> None:
+    user, pw = os.getenv("EMAIL_USER"), os.getenv("EMAIL_APP_PASSWORD")
+    to = [t.strip() for t in to if t and t.strip()]
+    if not (user and pw and to):
+        log("(email not configured - skipping email)")
+        return
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"] = user, ", ".join(sorted(set(to))), subject
+    msg.set_content(body)
+    host = os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com")
+    try:
+        with smtplib.SMTP_SSL(host, int(os.getenv("EMAIL_SMTP_PORT", "465")), timeout=30) as s:
+            s.login(user, pw)
+            s.send_message(msg)
+        log(f"email sent: {subject}")
+    except Exception as e:
+        log(f"!! email failed: {e}")
+
+
+def notify(report: Report, accounts: list[dict], morning: bool) -> None:
     summary = os.getenv("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as f:
             f.write("```\n" + "\n".join(LOG_LINES) + "\n```\n")
+
+    owner = (os.getenv("EMAIL_TO") or "").split(",")
+    footer = f"\n\nSettings page: {PAGE_URL}" if PAGE_URL else ""
+
+    # Warnings: only on the morning run (or a manual run), so you get at most one email a day.
+    if report.warnings and (morning or DRY_RUN):
+        by_person = {a.get("name"): a.get("email") for a in accounts}
+        text = "\n\n".join(f"{p}:\n  - " + "\n  - ".join(ws) for p, ws in report.warnings.items())
+        family = [by_person.get(p) for p in report.warnings]
+        send_email(owner + family, "MeroShare: password / account needs attention",
+                   "Action needed:\n\n" + text + footer)
+
+    parts = []
+    if report.applied:
+        parts.append(("Test run - would apply" if DRY_RUN else "Applied") + ":\n  - " + "\n  - ".join(report.applied))
+    if report.errors:
+        parts.append("Problems:\n  - " + "\n  - ".join(report.errors))
+    if parts or DRY_RUN:
+        subject = "MeroShare test run" if DRY_RUN else (
+            "MeroShare: application problem" if report.errors else "MeroShare: applied " + ", ".join(
+                sorted({a.split(": ")[1].split(" ")[0] for a in report.applied})))
+        body = "\n\n".join(parts) or "Test run finished. Every account logged in and nothing is due today."
+        send_email(owner, subject, body + footer)
+
     token, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
-    if token and chat and text:
+    if token and chat and parts:
         try:
             requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                          json={"chat_id": chat, "text": text}, timeout=20)
+                          json={"chat_id": chat, "text": "\n\n".join(parts)}, timeout=20)
         except requests.RequestException as e:
             print(f"telegram notify failed: {e}")
 
 
 def main() -> int:
-    today = datetime.now(NPT).date()
-    log(f"MeroShare auto-IPO - {today.isoformat()} (Nepal time), mode={APPLY_ON}, dry_run={DRY_RUN}")
+    now = datetime.now(NPT)
+    today = now.date()
+    morning = now.hour < 12
+    log(f"MeroShare auto-apply - {now:%Y-%m-%d %H:%M} Nepal time, mode={APPLY_ON}, dry_run={DRY_RUN}")
     accounts = load_accounts()
     subs = load_subscription_data()
     log(f"{len(accounts)} account(s) enabled")
 
-    applied: list[str] = []
-    errors: list[str] = []
-    for acc in accounts:
+    report = Report()
+    for i, acc in enumerate(accounts, 1):
         try:
-            applied += process_account(acc, subs, today)
+            process_account(i, acc, subs, today, report)
         except Exception as e:  # keep going for the other family members
-            label = acc.get("name") or acc.get("username")
-            log(f"   ERROR for {label}: {e}")
-            errors.append(f"{label}: {e}")
+            log(f"   ERROR for account #{i}: {type(e).__name__}")
+            report.errors.append(f"{acc.get('name') or f'Account {i}'}: {e}")
 
-    lines = []
-    if applied:
-        lines.append("IPO applications:\n" + "\n".join(applied))
-    if errors:
-        lines.append("Errors:\n" + "\n".join(errors))
-    notify("\n\n".join(lines))
-    return 1 if errors else 0
+    notify(report, accounts, morning)
+    return 1 if report.errors else 0
 
 
 if __name__ == "__main__":

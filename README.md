@@ -1,62 +1,65 @@
 # MeroShare Auto IPO
 
-Applies for **equity IPOs (ordinary shares, general public quota)** on MeroShare for you and your family, automatically, on the **last day** of each issue. It runs on GitHub Actions every day, so you don't need a computer on.
+Applies on MeroShare for you and your family automatically, on the **last day** of each issue. It runs on GitHub Actions twice a day (10:15 AM and 1:00 PM Nepal time), so no computer needs to be on.
 
-**Skipped automatically:** mutual funds, debentures and bonds, right shares, FPOs, reserved quotas (foreign employment, locals, employees), and anything you've already applied for.
+| Issue | What the bot does |
+|---|---|
+| IPO, ordinary shares, general public | applies (kitta chosen as below) |
+| FPO, ordinary shares, general public | applies (kitta chosen as below) |
+| Right shares | applies for the **full entitlement** (cap it per person with "Max right share kitta") |
+| Mutual funds, debentures, bonds | skipped |
+| Reserved quotas (foreign employment, locals, employees) | skipped |
+| Already applied | skipped |
 
-## How many kitta it applies for
+## How many kitta for IPOs and FPOs
 
-General-public IPOs in Nepal are allotted by lottery, 10 kitta per winner, once they're oversubscribed. Applying for 50 or 1000 kitta doesn't improve your odds; it only blocks more money in your account. So:
+General-public issues are allotted by lottery, 10 kitta per winner, once they're oversubscribed. Applying for more doesn't improve your odds; it only blocks more money. So:
 
 | Situation | Applies for |
 |---|---|
-| Subscription unknown (default) | minimum (10) |
-| Oversubscribed (≥ 1x) | minimum (10) |
-| Undersubscribed (< 1x) | as much as your `max_kitta` / `max_amount` allows (you get it all) |
-| Few applicants (everyone gets 10 and there's a remainder) | as much as your limits allow |
+| Subscription unknown (default) or oversubscribed | minimum (10) |
+| Undersubscribed (< 1x) | as much as the person's "Max Rs per IPO" allows (you get it all) |
+| Few applicants (everyone gets 10 and there's a remainder) | as much as the limit allows |
 
-To use the last two rows, add the issue's numbers to `subscription.json` on the last morning (e.g. `"ABCL": {"times": 0.7}`).
+To use the last two rows, add the issue to `subscription.json` on its last morning, for example `"ABCL": {"times": 0.7}`.
 
-## Setup (about 5 minutes)
+## Settings page (no GitHub needed day to day)
 
-1. Create a **private** GitHub repo and push this folder to it.
-2. Repo → **Settings → Secrets and variables → Actions → New repository secret**:
-   - Name: `ACCOUNTS_JSON`
-   - Value: your accounts list, in the format of `accounts.example.json`.
-3. Repo → **Actions** → enable workflows → **Auto apply IPO → Run workflow** with *dry run* ticked. Check the log: every account should log in and list the open issues.
+**https://aayushmsd2026-bit.github.io/meroshare-auto-ipo/**
 
-That's it. From then on it runs every day at 10:15 AM and 1:00 PM Nepal time and applies only on closing days.
+You can do all of this from your phone:
+- **Change password:** pick the person and enter the new password.
+- **Add / edit person:** a new family member. To edit someone, re-enter all their details under the same name.
+- **People:** see who's included and remove someone.
+- **Email:** set up email alerts.
+- **Test run:** checks every login without applying, then emails you the result.
 
-### Account fields
+The page encrypts everything in your browser with GitHub's public key before sending it. Saved values are write-only: nobody, including the page, can read them back. The page itself holds no secrets, which is why it's safe for it to be public.
 
-| Field | Required | Meaning |
-|---|---|---|
-| `name` | | Label for logs, e.g. "Mom" |
-| `dp` | ✔ | DP code (e.g. `13700`) or part of the DP name |
-| `username` | ✔ | MeroShare username |
-| `password` | ✔ | MeroShare password |
-| `pin` | ✔ | 4-digit transaction PIN |
-| `crn` | ✔ | CRN number from the bank |
-| `bank` | | Part of the bank name, if more than one bank is linked |
-| `max_kitta` / `max_amount` | | Upper limits for undersubscribed issues |
-| `enabled` | | `false` to pause one person |
+### One-time: make the access token
 
-### Adding or removing a family member
+1. On GitHub: profile picture → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. Set **Expiration** to 1 year, and set **Repository access** to *Only select repositories* → `meroshare-auto-ipo`.
+3. Under **Repository permissions**, set **Secrets** to *Read and write* and **Actions** to *Read and write*. Leave everything else at *No access*.
+4. Generate it, then paste it into the settings page. Each device remembers it.
 
-Edit the `ACCOUNTS_JSON` secret (Settings → Secrets → ACCOUNTS_JSON → Update) and add or remove one `{ ... }` block. Nothing else needs to change. Passwords never go in the repo.
+This token can only overwrite this repo's secrets and start runs. It can't read your passwords. If you lose your phone, delete the token on GitHub.
 
-### Notifications (optional)
+### One-time: email alerts
 
-GitHub emails you when a run fails (for example a wrong password or expired account). For a Telegram message after every application, add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+Use a Gmail account to send the alerts:
+1. Turn on 2-Step Verification for that Google account.
+2. Go to <https://myaccount.google.com/apppasswords>, create an app password, and copy the 16 letters.
+3. In the settings page, open **Email** and enter the Gmail address, the app password, and the address(es) to send alerts to.
 
-## Things to know
+You'll get an email when:
+- something is applied, with the scrip, kitta, and amount for each person;
+- an application or login fails;
+- a **MeroShare password, MeroShare account, or DEMAT account is expiring within 10 days, or has expired**. These warnings come at most once a day, from the morning run, until it's fixed. If a family member has their own email saved, they get their own warning too.
 
-- **Keep enough balance** in each linked bank account. If the bank rejects the block, the application fails at the bank's end.
-- **MeroShare passwords expire** every few months. When that happens the run fails and you get an email: change the password on MeroShare, then update the secret.
-- If CDSC changes its website API, this will break until the code is updated. Check the Actions tab now and then.
-- Some users report CDSC blocking traffic from outside Nepal. If logins time out from GitHub, run it on a computer in Nepal instead (`python apply_ipo.py` with an `accounts.json` file next to it, scheduled with Task Scheduler or cron).
+When a password expires: log in at meroshare.cdsc.com.np, change it there, then save the same new password on the settings page.
 
-## Running locally
+## Running locally (optional)
 
 ```bash
 pip install -r requirements.txt
@@ -64,3 +67,11 @@ cp accounts.example.json accounts.json   # fill in real details; this file is gi
 DRY_RUN=true python apply_ipo.py
 python tests/test_flow.py                # offline test against a fake MeroShare
 ```
+
+## Things to know
+
+- **Keep enough balance** in each linked bank account, especially for right shares, which apply for the full entitlement.
+- The repo is public, so Actions logs are public. The bot therefore never logs names, usernames, or account numbers; it shows "Account #1", "Account #2", and so on. Details only go out by email.
+- If CDSC changes its website API, the bot breaks until the code is updated. Failure emails will tell you.
+- Some users report that CDSC blocks traffic from outside Nepal. If logins time out from GitHub, run it on a computer in Nepal instead (see Running locally).
+- A small monthly "keepalive" workflow stops GitHub from turning off the schedule after 60 days with no repo activity.
