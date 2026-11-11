@@ -305,6 +305,7 @@
     <div id="statusBox" class="status"><span class="dot"></span><div><b id="statusTitle">Checking…</b><small id="statusSub"></small></div>
       <button class="refresh" id="refreshBtn" aria-label="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button></div>
 
+    <div id="homeOld"></div>
     <div class="card hidden" id="setupCard">
       <h2 style="margin-top:0">Finish setting up</h2>
       <p class="sub" style="margin-bottom:4px">Just a few steps, and then it runs by itself.</p>
@@ -351,6 +352,7 @@
         <button class="btn" id="pushBtn">Turn on</button>
       </div>
       <div id="pushMsg"></div>
+      <p class="help" id="devLine" style="margin-top:12px"></p>
     </div>
 
     <div id="latest"><div class="card"><p class="help" style="margin:0">Loading…</p></div></div>
@@ -380,7 +382,7 @@
   <section id="v-person" class="view hidden">
     <button class="back" data-go="home"><svg class="i"><use href="#i-back"/></svg>Home</button>
     <h2>Add a person</h2>
-    <p class="sub">Use the same details they use to log in to MeroShare. To fix someone's details, add them again with the same name.</p>
+    <p class="sub">Use the same details they use to log in to MeroShare. To fix someone's details, add them again with exactly the same name.</p>
 
     <div class="card">
       <label class="f" for="pName" style="margin-top:0">Name</label>
@@ -441,6 +443,7 @@
   <section id="v-people" class="view hidden">
     <h2>Family list</h2>
     <p class="sub">The bot applies for everyone here.</p>
+    <div id="oldBanner"></div>
     <div class="card" id="peopleList"></div>
     <div id="peopleMsg"></div>
     <button class="btn ghost" data-go="person">+ Add a person</button>
@@ -535,6 +538,20 @@
   let token = "", publicKey = null;
   const state = { names: [], people: [], email: false, tested: false, runs: [], results: null };
   const pretty = (k) => k.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  // People are stored in numbered slots (MS_ACCOUNT_1 ... _12). Their names are remembered on this
+  // device, and every device also learns them from the (encrypted) run results.
+  const MAX_PEOPLE = 12, MAX_DEVICES = 6;
+  function nameMap() {
+    let m = {}; try { m = JSON.parse(localStorage.getItem("slot_names") || "{}"); } catch {}
+    for (const r of (state.results || []).slice().reverse()) for (const p of r.people || []) if (p.slot && /^\d+$/.test(p.slot) && !m[p.slot]) m[p.slot] = p.name;
+    return m;
+  }
+  function setName(slot, name) {
+    let m = {}; try { m = JSON.parse(localStorage.getItem("slot_names") || "{}"); } catch {}
+    if (name) m[slot] = name; else delete m[slot];
+    try { localStorage.setItem("slot_names", JSON.stringify(m)); } catch {}
+  }
+  const personName = (slot) => nameMap()[slot] || `Person ${slot}`;
 
   // ---------- small UI helpers
   function note(id, text, kind = "ok") { $(id).innerHTML = text ? `<div class="note ${kind}">${text}</div>` : ""; }
@@ -582,7 +599,8 @@
   async function refresh() {
     const res = await gh("/actions/secrets?per_page=100");
     state.names = res.secrets.map((s) => s.name);
-    state.people = state.names.filter((n) => n.startsWith("MS_ACCOUNT_")).map((n) => n.slice(11)).sort();
+    state.people = state.names.map((n) => (n.match(/^MS_ACCOUNT_(\d+)$/) || [])[1]).filter(Boolean).sort((a, b) => a - b);
+    state.oldPeople = state.names.filter((n) => /^MS_ACCOUNT_/.test(n) && !/^MS_ACCOUNT_\d+$/.test(n)).map((n) => n.slice(11));
     state.email = ["EMAIL_USER", "EMAIL_APP_PASSWORD", "EMAIL_TO"].every((n) => state.names.includes(n));
     try {
       const runs = await gh("/actions/workflows/auto-ipo.yml/runs?per_page=6");
@@ -592,6 +610,7 @@
     renderAll();
     await registerDevice().catch(() => {});
     await loadResults().catch(() => {});
+    renderPush();
   }
 
   // ---------- rendering
@@ -630,25 +649,37 @@
 
     // password person select
     const sel = $("pwPerson"), keep = sel.value;
-    sel.innerHTML = n ? state.people.map((k) => `<option value="${k}">${esc(pretty(k))}</option>`).join("") : `<option value="">Nobody added yet</option>`;
+    sel.innerHTML = n ? state.people.map((k) => `<option value="${k}">${esc(personName(k))}</option>`).join("") : `<option value="">Nobody added yet</option>`;
     if (state.people.includes(keep)) sel.value = keep;
 
     // people list
     $("peopleList").innerHTML = n ? "" : `<p class="help" style="margin:0">Nobody added yet.</p>`;
     for (const k of state.people) {
       const row = document.createElement("div"); row.className = "person";
-      row.innerHTML = `<span class="avatar">${esc(pretty(k)[0])}</span><span class="nm">${esc(pretty(k))}</span><span class="acts"><button class="pw-btn">Password</button><button class="rm">Remove</button></span>`;
+      row.innerHTML = `<span class="avatar">${esc(personName(k)[0])}</span><span class="nm">${esc(personName(k))}</span><span class="acts"><button class="pw-btn">Password</button><button class="rm">Remove</button></span>`;
       row.querySelector(".pw-btn").onclick = () => { location.hash = "password"; $("pwPerson").value = k; };
       row.querySelector(".rm").onclick = async () => {
-        if (!confirm(`Remove ${pretty(k)}? The bot will stop applying for them.`)) return;
+        const nm = personName(k);
+        if (!confirm(`Remove ${nm}? The bot will stop applying for them.`)) return;
         try {
           await gh(`/actions/secrets/MS_ACCOUNT_${k}`, { method: "DELETE" });
           await gh(`/actions/secrets/MS_PASSWORD_${k}`, { method: "DELETE" }).catch(() => {});
-          toast(`${pretty(k)} removed`); refresh();
+          setName(k, null); toast(`${nm} removed`); refresh();
         } catch (e) { note("peopleMsg", e.message, "err"); }
       };
       $("peopleList").appendChild(row);
     }
+    const old = state.oldPeople || [];
+    $("oldBanner").innerHTML = old.length ? `<div class="note err" style="margin:0 0 14px"><b>One-time update needed</b><br>
+      GitHub blocked the old way people were saved, so the bot couldn't run. Please add these people again:
+      <b>${old.map((k) => esc(pretty(k))).join(", ")}</b>. Then tap the button below to delete the old copies.
+      <button class="btn danger" id="oldClean" style="margin-top:12px">Delete old copies</button></div>` : "";
+    $("homeOld").innerHTML = old.length ? `<div class="note err" style="margin:0 0 14px"><b>Action needed:</b> please add your family again. <a href="#people">See why →</a></div>` : "";
+    if (old.length) $("oldClean").onclick = async () => {
+      if (!confirm("Delete the old copies? Make sure you've added everyone again first.")) return;
+      for (const k of old) { await gh(`/actions/secrets/MS_ACCOUNT_${k}`, { method: "DELETE" }).catch(() => {}); await gh(`/actions/secrets/MS_PASSWORD_${k}`, { method: "DELETE" }).catch(() => {}); }
+      toast("Old copies deleted"); refresh();
+    };
 
     note("emailNow", state.email ? "Email is already set up. Fill this in again only to change it." : "", "ok");
     renderRuns();
@@ -726,7 +757,7 @@
     try {
       await putSecret(`MS_PASSWORD_${k}`, p);
       $("pwNew").value = $("pwNew2").value = "";
-      note("pwMsg", `<b>Saved ✓</b><br>The bot will use ${esc(pretty(k))}'s new password from now on.`, "ok");
+      note("pwMsg", `<b>Saved ✓</b><br>The bot will use ${esc(personName(k))}'s new password from now on.`, "ok");
     } catch (err) { note("pwMsg", err.message, "err"); }
   });
 
@@ -781,13 +812,15 @@
   loadDps();
 
   // ---------- add person
-  const keyOf = (name) => name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   $("pSave").onclick = (e) => busy(e.currentTarget, async () => {
     document.querySelectorAll("#v-person input.bad").forEach((i) => i.classList.remove("bad"));
-    const name = $("pName").value.trim(), k = keyOf(name);
+    const name = $("pName").value.trim();
+    const names = nameMap();
+    let k = state.people.find((slot) => (names[slot] || "").toLowerCase() === name.toLowerCase());
+    if (!k) for (let i = 1; i <= MAX_PEOPLE; i++) if (!state.people.includes(String(i))) { k = String(i); break; }
     const acc = { name, dp: chosenDp(), username: $("pUser").value.trim(), pin: $("pPin").value.trim(), crn: $("pCrn").value.trim() };
     const missing = [];
-    if (!k || !/^[A-Z]/.test(k)) missing.push(["pName", "a name (in English letters)"]);
+    if (!name) missing.push(["pName", "a name"]);
     if (!acc.dp) missing.push(["pDpSearch", "the DP"]);
     if (!acc.username) missing.push(["pUser", "the MeroShare username"]);
     if (!$("pPass").value) missing.push(["pPass", "the MeroShare password"]);
@@ -802,8 +835,10 @@
     if ($("pEmail").value.trim()) acc.email = $("pEmail").value.trim();
     if ($("pMaxAmt").value.trim()) acc.max_amount = Number($("pMaxAmt").value.replace(/[^\d.]/g, ""));
     if ($("pRightMax").value.trim()) acc.right_max_kitta = Number($("pRightMax").value.replace(/[^\d]/g, ""));
+    if (!k) return note("pMsg", `You can add up to ${MAX_PEOPLE} people. Remove someone first.`, "err");
     try {
       await putSecret(`MS_ACCOUNT_${k}`, JSON.stringify(acc));
+      setName(k, name);
       await putSecret(`MS_PASSWORD_${k}`, $("pPass").value);
       ["pName", "pUser", "pPass", "pPin", "pCrn", "pBank", "pEmail", "pMaxAmt", "pRightMax"].forEach((id) => $(id).value = "");
       clearDp();
@@ -846,19 +881,33 @@
     return `${kind} (added ${new Date().toLocaleDateString()})`;
   }
   async function saveDeviceSecret(d) {
+    if (!d.id) throw new Error("This device isn't linked yet.");
     await putSecret(`DEVICE_${d.id}`, JSON.stringify({ name: d.name, box_pub: d.pk, push: d.push || null }));
     d.saved = true; saveDevice(d);
   }
+  const deviceSlots = () => state.names.map((n) => (n.match(/^DEVICE_(\d+)$/) || [])[1]).filter(Boolean);
   async function registerDevice() {
     await sodium.ready;
     let d = device();
     if (!d) {
       const kp = sodium.crypto_box_keypair();
-      const id = Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
-      d = { id, name: deviceName(), pk: sodium.to_base64(kp.publicKey, B64()), sk: sodium.to_base64(kp.privateKey, B64()), push: null, saved: false };
-      saveDevice(d);
+      d = { id: null, name: deviceName(), pk: sodium.to_base64(kp.publicKey, B64()), sk: sodium.to_base64(kp.privateKey, B64()), push: null, saved: false };
     }
-    if (!d.saved || !state.names.includes(`DEVICE_${d.id}`)) await saveDeviceSecret(d);
+    if (d.id && !/^\d+$/.test(d.id)) {  // older version used random ids; move to a numbered slot
+      await gh(`/actions/secrets/DEVICE_${d.id}`, { method: "DELETE" }).catch(() => {});
+      d.id = null; d.saved = false;
+    }
+    if (d.id && state.names.includes(`DEVICE_${d.id}`) && d.saved) { saveDevice(d); return; }
+    if (!d.id || !state.names.includes(`DEVICE_${d.id}`)) {
+      const used = deviceSlots();
+      d.id = null;
+      for (let i = 1; i <= MAX_DEVICES; i++) if (!used.includes(String(i))) { d.id = String(i); break; }
+      if (!d.id) { saveDevice(d); state.deviceFull = true; return; }
+    }
+    state.deviceFull = false;
+    saveDevice(d);
+    await saveDeviceSecret(d);
+    state.names.push(`DEVICE_${d.id}`);
   }
 
   async function fetchStatusFile() {
@@ -956,7 +1005,22 @@
 
   // ---------- phone notifications (Web Push, sent by the bot itself; no server needed)
   const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  function renderDevices() {
+    const used = deviceSlots(), d = device();
+    if (state.deviceFull) {
+      $("devLine").innerHTML = `This device can't get updates: all ${MAX_DEVICES} device spots are in use. <button class="back" id="devClean" style="margin:0;padding:0">Free them up</button>`;
+    } else {
+      $("devLine").innerHTML = `${used.length} of ${MAX_DEVICES} devices linked.` + (used.length > 1 ? ` <button class="back" id="devClean" style="margin:0;padding:0;display:inline">Unlink other devices</button>` : "");
+    }
+    const b = $("devClean");
+    if (b) b.onclick = async () => {
+      if (!confirm("Unlink every other phone or computer? They'll stop getting updates until opened again.")) return;
+      for (const slot of used) if (!d || slot !== d.id) await gh(`/actions/secrets/DEVICE_${slot}`, { method: "DELETE" }).catch(() => {});
+      toast("Other devices unlinked"); await refresh();
+    };
+  }
   function renderPush() {
+    renderDevices();
     const d = device();
     if (!pushSupported) {
       $("pushState").textContent = "This browser can't show notifications. Install the app from Chrome to use them.";
@@ -976,6 +1040,7 @@
     const perm = await Notification.requestPermission();
     if (perm !== "granted") { renderPush(); return note("pushMsg", "Notifications weren't allowed. Tap Turn on again and choose <b>Allow</b>.", "err"); }
     await registerDevice();
+    if (!device() || !device().id) throw new Error("all device spots are in use. Unlink other devices first.");
     const reg = await navigator.serviceWorker.ready;
     const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe();
     // A signing key just for this phone; the bot uses it to send notifications here.

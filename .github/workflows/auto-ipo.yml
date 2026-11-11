@@ -36,8 +36,38 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Apply
         env:
-          # All repo secrets (MS_ACCOUNT_*, MS_PASSWORD_*, ...). GitHub hides their values in logs.
-          ALL_SECRETS: ${{ toJSON(secrets) }}
+          # Each family member has a numbered slot (1-12); each phone/computer using the app has one (1-6).
+          MS_ACCOUNT_1: ${{ secrets.MS_ACCOUNT_1 }}
+          MS_PASSWORD_1: ${{ secrets.MS_PASSWORD_1 }}
+          MS_ACCOUNT_2: ${{ secrets.MS_ACCOUNT_2 }}
+          MS_PASSWORD_2: ${{ secrets.MS_PASSWORD_2 }}
+          MS_ACCOUNT_3: ${{ secrets.MS_ACCOUNT_3 }}
+          MS_PASSWORD_3: ${{ secrets.MS_PASSWORD_3 }}
+          MS_ACCOUNT_4: ${{ secrets.MS_ACCOUNT_4 }}
+          MS_PASSWORD_4: ${{ secrets.MS_PASSWORD_4 }}
+          MS_ACCOUNT_5: ${{ secrets.MS_ACCOUNT_5 }}
+          MS_PASSWORD_5: ${{ secrets.MS_PASSWORD_5 }}
+          MS_ACCOUNT_6: ${{ secrets.MS_ACCOUNT_6 }}
+          MS_PASSWORD_6: ${{ secrets.MS_PASSWORD_6 }}
+          MS_ACCOUNT_7: ${{ secrets.MS_ACCOUNT_7 }}
+          MS_PASSWORD_7: ${{ secrets.MS_PASSWORD_7 }}
+          MS_ACCOUNT_8: ${{ secrets.MS_ACCOUNT_8 }}
+          MS_PASSWORD_8: ${{ secrets.MS_PASSWORD_8 }}
+          MS_ACCOUNT_9: ${{ secrets.MS_ACCOUNT_9 }}
+          MS_PASSWORD_9: ${{ secrets.MS_PASSWORD_9 }}
+          MS_ACCOUNT_10: ${{ secrets.MS_ACCOUNT_10 }}
+          MS_PASSWORD_10: ${{ secrets.MS_PASSWORD_10 }}
+          MS_ACCOUNT_11: ${{ secrets.MS_ACCOUNT_11 }}
+          MS_PASSWORD_11: ${{ secrets.MS_PASSWORD_11 }}
+          MS_ACCOUNT_12: ${{ secrets.MS_ACCOUNT_12 }}
+          MS_PASSWORD_12: ${{ secrets.MS_PASSWORD_12 }}
+          DEVICE_1: ${{ secrets.DEVICE_1 }}
+          DEVICE_2: ${{ secrets.DEVICE_2 }}
+          DEVICE_3: ${{ secrets.DEVICE_3 }}
+          DEVICE_4: ${{ secrets.DEVICE_4 }}
+          DEVICE_5: ${{ secrets.DEVICE_5 }}
+          DEVICE_6: ${{ secrets.DEVICE_6 }}
+          ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}

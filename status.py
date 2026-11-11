@@ -5,6 +5,7 @@ named DEVICE_<ID>:
   {"name": "...", "box_pub": "<base64 X25519 public key>",
    "push": {"subscription": {...}, "vapid_private": "<base64url P-256 key>"} or null}
 
+(The workflow passes DEVICE_1 ... DEVICE_6 as environment variables.)
 For every device this module:
   1. encrypts the run's results with that device's public key (libsodium sealed
      box) and stores them in docs/status.json. The repo is public, but only the
@@ -25,7 +26,8 @@ HISTORY = 15  # runs kept per device
 
 
 def _devices() -> dict[str, dict]:
-    secrets = json.loads(os.getenv("ALL_SECRETS") or "{}")
+    from apply_ipo import secret_values
+    secrets = secret_values()
     out = {}
     for key, value in secrets.items():
         if key.startswith("DEVICE_"):

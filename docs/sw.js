@@ -1,7 +1,7 @@
 // IPO Helper service worker: lets the app open instantly and work as an installed app.
 // Pages are fetched fresh when online (so updates show up right away) and from cache when offline.
 // GitHub API calls are never cached.
-const CACHE = "ipo-helper-v2";
+const CACHE = "ipo-helper-v3";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "vendor/libsodium.js", "vendor/libsodium-wrappers.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-32.png", "dps.json"];
 

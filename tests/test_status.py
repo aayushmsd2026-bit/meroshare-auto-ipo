@@ -33,10 +33,10 @@ class H(BaseHTTPRequestHandler):
 srv = ThreadingHTTPServer(("127.0.0.1", 8799), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 
 sub = {"endpoint": "http://127.0.0.1:8799/push/abc", "keys": {"p256dh": b64u(recv_pub), "auth": b64u(auth)}}
-os.environ["ALL_SECRETS"] = json.dumps({
-    "DEVICE_PHONE1": json.dumps({"name": "Phone", "box_pub": base64.b64encode(bytes(box.public_key)).decode(),
+os.environ.update({
+    "DEVICE_1": json.dumps({"name": "Phone", "box_pub": base64.b64encode(bytes(box.public_key)).decode(),
                                  "push": {"subscription": sub, "vapid_private": vapid_d}}),
-    "DEVICE_LAPTOP": json.dumps({"name": "Laptop", "box_pub": base64.b64encode(bytes(PrivateKey.generate().public_key)).decode(), "push": None}),
+    "DEVICE_2": json.dumps({"name": "Laptop", "box_pub": base64.b64encode(bytes(PrivateKey.generate().public_key)).decode(), "push": None}),
 })
 os.environ["PAGE_URL"] = "https://example.github.io/repo/"
 status.STATUS_FILE = Path(os.environ.get("TMPDIR", "/tmp")) / "status_test.json"
@@ -56,8 +56,8 @@ for _ in range(2):  # two runs -> history of 2
                    email={"configured": True, "sent": 0, "error": "535 bad credentials"}, log=print)
 
 data = json.loads(status.STATUS_FILE.read_text())
-assert set(data["devices"]) == {"PHONE1", "LAPTOP"} and len(data["devices"]["PHONE1"]) == 2
-res = json.loads(SealedBox(box).decrypt(base64.b64decode(data["devices"]["PHONE1"][0])))
+assert set(data["devices"]) == {"1", "2"} and len(data["devices"]["1"]) == 2
+res = json.loads(SealedBox(box).decrypt(base64.b64decode(data["devices"]["1"][0])))
 assert res["ok"] is False and res["applied"] == ["Me: ABC 10 kitta"]
 assert any("Dad" in p for p in res["problems"]) and any("Email could not be sent" in p for p in res["problems"])
 assert res["warnings"] == ["Me: MeroShare password expires in 5 day(s) on 2026-11-16"]

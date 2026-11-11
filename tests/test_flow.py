@@ -59,17 +59,19 @@ apply_ipo.MeroShare._req = fake
 apply_ipo.send_email = lambda to, subject, body: emails.append((sorted(set(t for t in to if t)), subject, body))
 apply_ipo.load_subscription_data = lambda: {"UNDER": {"times": 0.6}}
 acc = lambda **kw: json.dumps({"dp": "13700", "username": "1", "pin": "1234", "crn": "C1", **kw})
-os.environ["ALL_SECRETS"] = json.dumps({
-    "MS_ACCOUNT_ME": acc(name="Me", max_amount=5000), "MS_PASSWORD_ME": "ok",
-    "MS_ACCOUNT_DAD": acc(name="Dad", email="dad@example.com"), "MS_PASSWORD_DAD": "expired",
-    "MS_ACCOUNT_OFF": acc(enabled=False), "MS_PASSWORD_OFF": "ok",
-    "GITHUB_TOKEN": "x",
+# exactly how the workflow passes secrets: one environment variable per numbered slot
+os.environ.update({
+    "MS_ACCOUNT_1": acc(name="Me", max_amount=5000), "MS_PASSWORD_1": "ok",
+    "MS_ACCOUNT_2": acc(name="Dad", email="dad@example.com"), "MS_PASSWORD_2": "expired",
+    "MS_ACCOUNT_3": acc(enabled=False), "MS_PASSWORD_3": "ok",
 })
+os.environ.pop("ALL_SECRETS", None)
 os.environ["EMAIL_TO"] = "me@example.com"
 class Morning(datetime):
     @classmethod
     def now(cls, tz=None): return now.replace(hour=10, minute=15)
 apply_ipo.datetime = Morning  # pretend it is the 10:15 AM run
+import status as _st; _st.publish = lambda *a, **k: None  # app results are covered by test_status.py
 rc = apply_ipo.main()
 
 got = {(p["companyShareId"], p["appliedKitta"]) for p in applied}

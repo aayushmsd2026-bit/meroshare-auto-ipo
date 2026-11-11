@@ -1,10 +1,10 @@
 """Automatically apply for IPOs, FPOs and right shares on MeroShare for several accounts.
 
-Accounts are read from GitHub secrets (managed with the web page in docs/):
-  MS_ACCOUNT_<KEY>   JSON with dp, username, pin, crn, ... (everything except the password)
-  MS_PASSWORD_<KEY>  the MeroShare password
-The whole secrets object reaches this script as ALL_SECRETS. The older single
-ACCOUNTS_JSON secret, and a local accounts.json file, also work. See README.md.
+Accounts are read from GitHub secrets (managed with the app in docs/), one numbered slot per person:
+  MS_ACCOUNT_<N>   JSON with name, dp, username, pin, crn, ... (everything except the password)
+  MS_PASSWORD_<N>  the MeroShare password
+The workflow passes each slot to this script as an environment variable of the same name.
+(Locally, ALL_SECRETS='{"MS_ACCOUNT_1": ...}', ACCOUNTS_JSON, or an accounts.json file also work.)
 """
 
 from __future__ import annotations
@@ -270,9 +270,19 @@ def _secret_accounts(secrets: dict) -> list[dict]:
     return accounts
 
 
+SECRET_PREFIXES = ("MS_ACCOUNT_", "MS_PASSWORD_", "DEVICE_")
+
+
+def secret_values() -> dict:
+    """Secrets from environment variables (as the workflow passes them), plus ALL_SECRETS for local runs."""
+    out = json.loads(os.getenv("ALL_SECRETS") or "{}")
+    out.update({k: v for k, v in os.environ.items() if k.startswith(SECRET_PREFIXES) and v})
+    return out
+
+
 def load_accounts() -> list[dict]:
     accounts: list[dict] = []
-    secrets = json.loads(os.getenv("ALL_SECRETS") or "{}")
+    secrets = secret_values()
     accounts += _secret_accounts(secrets)
 
     raw = os.getenv("ACCOUNTS_JSON") or secrets.get("ACCOUNTS_JSON")
@@ -322,7 +332,7 @@ class Report:
 
 def process_account(idx: int, acc: dict, subs: dict, today: date, report: Report) -> None:
     person = acc.get("name") or f"Account {idx}"
-    entry = {"name": person, "ok": False, "error": None, "warnings": [], "applied": [], "issues": []}
+    entry = {"name": person, "slot": acc.get("_key"), "ok": False, "error": None, "warnings": [], "applied": [], "issues": []}
     report.people.append(entry)
     log(f"\n=== Account #{idx} ===")
     for field in ("dp", "username", "password", "pin", "crn"):
