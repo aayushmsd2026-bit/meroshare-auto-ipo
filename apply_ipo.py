@@ -164,6 +164,9 @@ class MeroShare:
 
     @staticmethod
     def _message(r: requests.Response) -> str:
+        if "Request Rejected" in r.text:
+            return ("MeroShare's firewall refused the connection from GitHub's servers (outside Nepal). "
+                    "Your password was not checked. The bot needs to run on a computer in Nepal.")
         try:
             return r.json().get("message") or r.text[:200]
         except ValueError:
