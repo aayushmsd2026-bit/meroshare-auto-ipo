@@ -1,0 +1,41 @@
+name: Auto apply IPO
+
+on:
+  schedule:
+    # Nepal time = UTC+5:45. MeroShare applications close at 5 PM NPT on the last day.
+    - cron: "30 4 * * *"   # 10:15 AM NPT - main run
+    - cron: "15 7 * * *"   # 1:00 PM NPT  - retry (already-applied issues are skipped)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (check everything but do not submit)"
+        type: boolean
+        default: true
+      apply_on:
+        description: "When to apply"
+        type: choice
+        options: [last_day, any_day]
+        default: last_day
+
+concurrency:
+  group: auto-ipo
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Apply
+        env:
+          ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          APPLY_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_on || 'last_day' }}
+        run: python apply_ipo.py

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Me",
+    "dp": "13700",
+    "username": "00123456",
+    "password": "your-meroshare-password",
+    "pin": "1234",
+    "crn": "CRN-FROM-YOUR-BANK",
+    "bank": "",
+    "max_kitta": null,
+    "max_amount": 50000,
+    "enabled": true
+  },
+  {
+    "name": "Mom",
+    "dp": "11200",
+    "username": "00987654",
+    "password": "moms-password",
+    "pin": "4321",
+    "crn": "MOMS-CRN",
+    "enabled": true
+  }
+]

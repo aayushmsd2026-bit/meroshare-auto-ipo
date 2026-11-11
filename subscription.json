@@ -1,0 +1,4 @@
+{
+  "_help": "Optional. If you know how subscribed an IPO is (from news sites on the last day), add it here by scrip. times = general public demand / units offered. With no entry the bot applies the minimum (10 kitta).",
+  "_example_SCRIP": {"times": 0.8, "applicants": 120000, "units_offered": 2500000}
+}
