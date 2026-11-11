@@ -293,7 +293,7 @@ def load_accounts() -> list[dict]:
         accounts += extra.get("accounts", []) if isinstance(extra, dict) else extra
 
     if not accounts:
-        sys.exit("No accounts found. Add people with the web page (docs/index.html) or the ACCOUNTS_JSON secret.")
+        log("No accounts found. Add people in the app (Family → Add a person).")
     return [a for a in accounts if a.get("enabled", True) is not False]
 
 
@@ -513,6 +513,8 @@ def main() -> int:
     log(f"{len(accounts)} account(s) enabled")
 
     report = Report()
+    if not accounts:
+        report.errors.append("Nobody is added yet. Open the app and add your family (Family → Add a person).")
     for i, acc in enumerate(accounts, 1):
         try:
             process_account(i, acc, subs, today, report)
