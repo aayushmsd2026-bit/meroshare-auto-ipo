@@ -41,6 +41,8 @@
   .people li { padding: 8px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
   .people li:last-child { border-bottom: 0; }
   .hidden { display: none; }
+  select.dp-list { margin-top: 6px; padding: 4px; }
+  select.dp-list option { padding: 6px 8px; border-radius: 6px; }
   a { color: var(--accent); }
 </style>
 </head>
@@ -86,10 +88,15 @@
       <p class="hint">Saved details can't be read back (GitHub keeps them write-only), so to edit someone, fill in all their details again using the same name.</p>
       <label for="pName">Name</label>
       <input id="pName" placeholder="Mom">
-      <div class="row">
-        <div><label for="pDp">DP code</label><input id="pDp" inputmode="numeric" placeholder="13700"></div>
-        <div><label for="pUser">MeroShare username</label><input id="pUser" inputmode="numeric" autocomplete="off"></div>
-      </div>
+      <label for="pUser">MeroShare username</label>
+      <input id="pUser" autocomplete="off">
+      <label for="pDpSearch">Depository participant (DP)</label>
+      <input id="pDpSearch" type="search" placeholder="Search, e.g. NIC, Global, Sunrise" autocomplete="off">
+      <select id="pDp" size="6" class="dp-list"></select>
+      <p class="hint" id="dpHint">The DP is the company where the DEMAT account was opened, often a bank's capital company. You select it on the MeroShare login screen, and it's printed on the DEMAT form.</p>
+      <label for="pBoid">Don't know the DP? Enter the 16-digit BOID instead</label>
+      <input id="pBoid" inputmode="numeric" placeholder="1301370001234567" autocomplete="off">
+      <p class="hint">The BOID is on the DEMAT form, in bank SMS, or under My Details in MeroShare. The DP is filled in from it.</p>
       <label for="pPass">MeroShare password</label>
       <input id="pPass" type="password" autocomplete="new-password">
       <div class="row">
@@ -219,6 +226,54 @@
     $("eMsg").className = "msg " + (hasEmail ? "ok" : "err");
   }
 
+  // ---- DP list: docs/dps.json (refreshed weekly by a GitHub workflow), else live from CDSC.
+  let dps = [];
+  async function loadDps() {
+    const sources = ["dps.json", "https://webbackend.cdsc.com.np/api/meroShare/capital/"];
+    for (const url of sources) {
+      try {
+        const r = await fetch(url, { cache: "no-cache" });
+        if (!r.ok) continue;
+        const list = await r.json();
+        if (Array.isArray(list) && list.length) {
+          dps = list.filter((d) => d.code && d.name).sort((a, b) => a.name.localeCompare(b.name));
+          break;
+        }
+      } catch {}
+    }
+    renderDps();
+  }
+  function renderDps() {
+    const q = $("pDpSearch").value.trim().toLowerCase();
+    const sel = $("pDp"), keep = sel.value;
+    if (!dps.length) {
+      sel.innerHTML = `<option value="">DP list not loaded yet. Type the DP code in the search box or enter the BOID.</option>`;
+      return;
+    }
+    const shown = dps.filter((d) => !q || d.name.toLowerCase().includes(q) || String(d.code).includes(q));
+    sel.innerHTML = shown.map((d) => `<option value="${d.code}">${d.name} (${d.code})</option>`).join("")
+      || `<option value="" disabled>No DP matches "${q}"</option>`;
+    if (keep && shown.some((d) => String(d.code) === keep)) sel.value = keep;
+    else if (shown.length === 1) sel.value = shown[0].code;
+  }
+  function chosenDp() {
+    if ($("pDp").value) return $("pDp").value;
+    const typed = $("pDpSearch").value.trim();
+    return /^\d{5}$/.test(typed) ? typed : "";
+  }
+  $("pDpSearch").addEventListener("input", renderDps);
+  $("pBoid").addEventListener("input", () => {
+    const boid = $("pBoid").value.replace(/\D/g, "");
+    if (boid.length !== 16) return;
+    const code = boid.slice(3, 8);
+    const match = dps.find((d) => String(d.code) === code);
+    $("pDpSearch").value = match ? match.name : code;
+    renderDps();
+    if (match) $("pDp").value = match.code;
+    $("dpHint").textContent = match ? `From the BOID: ${match.name} (${code}).` : `From the BOID, the DP code is ${code}.`;
+  });
+  loadDps();
+
   async function busy(btn, fn) { btn.disabled = true; try { await fn(); } finally { btn.disabled = false; } }
 
   async function connect() {
@@ -252,9 +307,9 @@
 
   $("pSave").onclick = (e) => busy(e.target, async () => {
     const name = $("pName").value.trim(), k = keyOf(name);
-    const acc = { name, dp: $("pDp").value.trim(), username: $("pUser").value.trim(), pin: $("pPin").value.trim(), crn: $("pCrn").value.trim() };
+    const acc = { name, dp: chosenDp(), username: $("pUser").value.trim(), pin: $("pPin").value.trim(), crn: $("pCrn").value.trim() };
     if (!k || !/^[A-Z]/.test(k)) return say("pMsg", "Enter a name that starts with a letter.", false);
-    for (const [f, label] of [["dp", "DP code"], ["username", "username"], ["pin", "PIN"], ["crn", "CRN"]]) if (!acc[f]) return say("pMsg", `Enter the ${label}.`, false);
+    for (const [f, label] of [["dp", "DP (pick it from the list)"], ["username", "username"], ["pin", "PIN"], ["crn", "CRN"]]) if (!acc[f]) return say("pMsg", `Enter the ${label}.`, false);
     if (!$("pPass").value) return say("pMsg", "Enter the MeroShare password.", false);
     if ($("pBank").value.trim()) acc.bank = $("pBank").value.trim();
     if ($("pEmail").value.trim()) acc.email = $("pEmail").value.trim();
@@ -263,7 +318,8 @@
     try {
       await putSecret(`MS_ACCOUNT_${k}`, JSON.stringify(acc));
       await putSecret(`MS_PASSWORD_${k}`, $("pPass").value);
-      ["pName", "pDp", "pUser", "pPass", "pPin", "pCrn", "pBank", "pEmail", "pMaxAmt", "pRightMax"].forEach((id) => $(id).value = "");
+      ["pName", "pDpSearch", "pBoid", "pUser", "pPass", "pPin", "pCrn", "pBank", "pEmail", "pMaxAmt", "pRightMax"].forEach((id) => $(id).value = "");
+      renderDps();
       say("pMsg", `Saved ${name}. Start a test run to check the login works.`);
       refreshPeople();
     } catch (err) { say("pMsg", err.message, false); }

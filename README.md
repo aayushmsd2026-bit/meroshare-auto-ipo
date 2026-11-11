@@ -29,7 +29,7 @@ To use the last two rows, add the issue to `subscription.json` on its last morni
 
 You can do all of this from your phone:
 - **Change password:** pick the person and enter the new password.
-- **Add / edit person:** a new family member. To edit someone, re-enter all their details under the same name.
+- **Add / edit person:** a new family member. Search for the DP by name, or enter the 16-digit BOID and the DP is filled in. To edit someone, re-enter all their details under the same name.
 - **People:** see who's included and remove someone.
 - **Email:** set up email alerts.
 - **Test run:** checks every login without applying, then emails you the result.

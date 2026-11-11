@@ -1,0 +1,38 @@
+name: Update DP list
+# Downloads MeroShare's list of depository participants into docs/dps.json for the settings page.
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/update-dp-list.yml"]
+  schedule:
+    - cron: "40 2 * * 0"   # weekly, Sunday 8:25 AM Nepal time
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download DP list
+        run: |
+          curl -fsS --retry 4 --retry-delay 5 -m 60 \
+            -H "Origin: https://meroshare.cdsc.com.np" -H "Referer: https://meroshare.cdsc.com.np/" \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36" \
+            https://webbackend.cdsc.com.np/api/meroShare/capital/ -o raw.json
+          python3 - <<'PY'
+          import json
+          data = json.load(open("raw.json"))
+          dps = sorted(({"code": str(d["code"]), "name": d["name"].strip()} for d in data if d.get("code") and d.get("name")),
+                       key=lambda d: d["name"].lower())
+          assert len(dps) > 20, f"only {len(dps)} DPs - refusing to overwrite"
+          json.dump(dps, open("docs/dps.json", "w"), indent=0, ensure_ascii=False)
+          print(f"{len(dps)} DPs")
+          PY
+          rm raw.json
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/dps.json
+          git diff --cached --quiet || (git commit -m "Update DP list" && git push)
