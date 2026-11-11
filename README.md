@@ -59,6 +59,12 @@ You'll get an email when:
 
 When a password expires: log in at meroshare.cdsc.com.np, change it there, then save the same new password on the settings page.
 
+## Results in the app and phone notifications
+
+Open the app's **Updates** tab to see what happened in each run: who logged in, what was applied, open issues and their closing dates, and anything that needs attention. Tap **Turn on** under *Phone notifications* to get a notification after a run that applied something, had a problem, or found a password about to expire.
+
+How it works without a server: each phone that opens the app gets its own key (saved as a `DEVICE_…` secret). After every run, the bot encrypts the results with each phone's key and saves them to `docs/status.json`. The repo is public, but the file is unreadable without the key that stays on your phone. Notifications are sent by the bot directly through Chrome's push service.
+
 ## Running locally (optional)
 
 ```bash
@@ -66,6 +72,7 @@ pip install -r requirements.txt
 cp accounts.example.json accounts.json   # fill in real details; this file is git-ignored
 DRY_RUN=true python apply_ipo.py
 python tests/test_flow.py                # offline test against a fake MeroShare
+pip install http_ece cryptography && python tests/test_status.py   # app results + notifications
 ```
 
 ## Things to know

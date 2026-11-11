@@ -92,10 +92,42 @@
   nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; justify-content: center;
     background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
     box-shadow: 0 -2px 12px rgba(0,0,0,.05); }
-  nav.bottom .in { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; max-width: 560px; }
+  nav.bottom .in { display: grid; grid-template-columns: repeat(5, 1fr); width: 100%; max-width: 560px; }
   nav.bottom button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 8px 4px 10px;
     font: inherit; font-size: .76rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; position: relative; }
-  nav.bottom button .pill { display: grid; place-items: center; width: 56px; height: 30px; border-radius: 15px; }
+  nav.bottom button .pill { display: grid; place-items: center; width: 52px; height: 30px; border-radius: 15px; position: relative; }
+  nav.bottom .badge { position: absolute; top: 2px; right: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--err); border: 2px solid var(--card); }
+
+  /* Updates */
+  .res-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .res-head .when { font-weight: 700; }
+  .res-head small { display: block; color: var(--muted); }
+  .chip { flex: none; display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .82rem; font-weight: 700; }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); }
+  .chip.bad { background: var(--err-soft); color: var(--err); }
+  .chip.warn { background: var(--accent-soft); color: var(--accent); }
+  .chip.info { background: var(--tint); color: var(--primary); }
+  .lst { list-style: none; margin: 8px 0 0; padding: 0; }
+  .lst li { position: relative; padding: 8px 0 8px 22px; border-bottom: 1px solid var(--line); font-size: .96rem; }
+  .lst li:last-child { border-bottom: 0; }
+  .lst li::before { content: ""; position: absolute; left: 4px; top: 16px; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .lst.bad li::before { background: var(--err); } .lst.ok li::before { background: var(--ok); } .lst.warn li::before { background: var(--accent); }
+  .sec-t { margin: 16px 0 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .ipo { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .ipo:last-child { border-bottom: 0; }
+  .ipo .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .ipo .top b { font-size: 1rem; }
+  .ipo .co { font-size: .88rem; color: var(--muted); }
+  .ipo .who { font-size: .88rem; margin-top: 4px; }
+  details.hist { border-bottom: 1px solid var(--line); }
+  details.hist:last-child { border-bottom: 0; }
+  details.hist summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 0; cursor: pointer; }
+  details.hist summary::-webkit-details-marker { display: none; }
+  details.hist .body { padding: 0 0 12px; }
+  .switch-row { display: flex; align-items: center; gap: 12px; }
+  .switch-row .tx { flex: 1; }
+  .switch-row .btn { width: auto; margin: 0; min-height: 44px; padding: 8px 16px; }
+  #statusBox { cursor: pointer; }
   nav.bottom button[aria-current="page"] { color: var(--primary); }
   nav.bottom button[aria-current="page"] .pill { background: var(--tint); }
   nav.bottom button:active .pill { background: var(--tint); }
@@ -215,6 +247,7 @@
   <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M1.5 21c0-3.9 3.4-7 7.5-7s7.5 3.1 7.5 7M16 4.5a4 4 0 0 1 0 7M18 14.5c2.6.8 4.5 3.3 4.5 6.5"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="m3 6 9 7 9-7"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
@@ -308,6 +341,25 @@
   </section>
 
   <!-- ============ CHANGE PASSWORD ============ -->
+  <section id="v-updates" class="view hidden">
+    <h2>Updates</h2>
+    <p class="sub">What happened in each run. New results appear here automatically.</p>
+
+    <div class="card" id="pushCard">
+      <div class="switch-row">
+        <div class="tx"><b>Phone notifications</b><br><small class="help" id="pushState" style="margin:0">Checking…</small></div>
+        <button class="btn" id="pushBtn">Turn on</button>
+      </div>
+      <div id="pushMsg"></div>
+    </div>
+
+    <div id="latest"><div class="card"><p class="help" style="margin:0">Loading…</p></div></div>
+    <div class="card hidden" id="histCard">
+      <h3 style="margin-top:0">Earlier</h3>
+      <div id="history"></div>
+    </div>
+  </section>
+
   <section id="v-password" class="view hidden">
     <h2>Change a password</h2>
     <p class="sub">First change the password on the MeroShare website or app. Then type the <b>same new password</b> here.</p>
@@ -449,6 +501,7 @@
 <nav class="bottom hidden" id="nav" aria-label="Main">
   <div class="in">
     <button data-go="home"><span class="pill"><svg class="i"><use href="#i-home"/></svg></span>Home</button>
+    <button data-go="updates"><span class="pill"><svg class="i"><use href="#i-bell"/></svg><span class="badge hidden" id="navBadge"></span></span>Updates</button>
     <button data-go="people"><span class="pill"><svg class="i"><use href="#i-people"/></svg></span>Family</button>
     <button data-go="password"><span class="pill"><svg class="i"><use href="#i-key"/></svg></span>Password</button>
     <button data-go="test"><span class="pill"><svg class="i"><use href="#i-play"/></svg></span>Check</button>
@@ -480,7 +533,7 @@
     clear() { try { localStorage.removeItem("gh_token"); } catch {} },
   };
   let token = "", publicKey = null;
-  const state = { names: [], people: [], email: false, tested: false, runs: [] };
+  const state = { names: [], people: [], email: false, tested: false, runs: [], results: null };
   const pretty = (k) => k.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   // ---------- small UI helpers
@@ -537,6 +590,8 @@
       state.tested = state.runs.some((r) => r.event === "workflow_dispatch");
     } catch { state.runs = []; }
     renderAll();
+    await registerDevice().catch(() => {});
+    await loadResults().catch(() => {});
   }
 
   // ---------- rendering
@@ -550,14 +605,19 @@
     const box = $("statusBox");
     if (!n) { box.className = "status warn"; $("statusTitle").textContent = "Not running yet"; $("statusSub").textContent = "Add at least one person to start."; }
     else if (last && last.status !== "completed") { box.className = "status"; $("statusTitle").textContent = "Running right now…"; $("statusSub").textContent = "Started " + when(last.created_at); }
-    else if (last && last.conclusion !== "success") { box.className = "status bad"; $("statusTitle").textContent = "The last run had a problem"; $("statusSub").textContent = when(last.created_at) + (state.email ? ". Details are in your email." : ". Set up email to see details."); }
+    else if (state.results && state.results[0] && !state.results[0].ok && (!last || new Date(state.results[0].time) >= new Date(last.created_at) - 60000)) {
+      const r0 = state.results[0];
+      box.className = "status bad"; $("statusTitle").textContent = "Problem: tap to see";
+      $("statusSub").textContent = r0.problems[0] || "See Updates";
+    }
+    else if (last && last.conclusion !== "success") { box.className = "status bad"; $("statusTitle").textContent = "The last run had a problem"; $("statusSub").textContent = when(last.created_at) + ". Tap to see details."; }
     else { box.className = "status"; $("statusTitle").textContent = `Active: applying for ${n} ${n === 1 ? "person" : "people"}`; $("statusSub").textContent = last ? "Last checked " + when(last.created_at) : "Runs every day at 10:15 AM and 1:00 PM"; }
 
     // checklist
     const steps = [
       { t: "Connect this page", done: true },
       { t: "Add yourself and your family", done: n > 0, go: "person" },
-      { t: "Turn on email alerts", done: state.email, go: "email" },
+      { t: "Turn on alerts (phone notifications or email)", done: state.email || !!(device() && device().push), go: "updates" },
       { t: "Check everything works", done: state.tested, go: "test" },
     ];
     const allDone = steps.every((s) => s.done);
@@ -611,7 +671,7 @@
   }
 
   // ---------- views / routing
-  const views = ["connect", "home", "password", "person", "people", "email", "test"];
+  const views = ["connect", "home", "updates", "password", "person", "people", "email", "test"];
   function route() {
     let v = location.hash.slice(1) || "home";
     if (!views.includes(v)) v = "home";
@@ -626,6 +686,7 @@
     });
     window.scrollTo(0, 0);
     if (v === "test" && token) refresh().catch(() => {});
+    if (v === "updates") { markSeen(); renderPush(); if (token) loadResults().catch(() => {}); }
   }
   window.addEventListener("hashchange", route);
 
@@ -645,7 +706,16 @@
     if (!token) return note("connectMsg", "Please paste the key first.", "err");
     await connect(true);
   });
-  $("forgetBtn").onclick = () => { if (confirm("Disconnect this device? You'll need the key again to make changes here. The bot keeps running.")) { store.clear(); token = ""; location.hash = ""; location.reload(); } };
+  $("forgetBtn").onclick = async () => {
+    if (!confirm("Disconnect this device? It will stop getting updates and notifications. The bot keeps running.")) return;
+    const d = device();
+    if (d) {
+      await gh(`/actions/secrets/DEVICE_${d.id}`, { method: "DELETE" }).catch(() => {});
+      try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch {}
+      try { localStorage.removeItem("device"); } catch {}
+    }
+    store.clear(); token = ""; location.hash = ""; location.reload();
+  };
 
   // ---------- change password
   $("pwSave").onclick = (e) => busy(e.currentTarget, async () => {
@@ -760,13 +830,175 @@
     if (!state.people.length) return note("testMsg", "Add a person first.", "err");
     try {
       await gh("/actions/workflows/auto-ipo.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: "main", inputs: { dry_run: true, apply_on: "last_day" } }) });
-      note("testMsg", state.email
-        ? "<b>Check started ✓</b><br>You'll get an email in about 2 minutes. Nothing will be applied."
-        : "<b>Check started ✓</b><br>Email isn't set up, so watch <b>Recent runs</b> below for OK ✓ or Problem ✗.", "ok");
-      setTimeout(() => refresh().catch(() => {}), 6000);
-      setTimeout(() => refresh().catch(() => {}), 90000);
+      note("testMsg", "<b>Check started ✓</b><br>It takes about 2 minutes. Nothing will be applied. " +
+        (device() && device().push ? "You'll get a notification when it's done." : "The result will appear under <a href='#updates'>Updates</a>."), "ok");
+      watchRun();
     } catch (err) { note("testMsg", err.message, "err"); }
   });
+
+  // ---------- this device: gets its own encrypted copy of every run's results
+  function device() { try { return JSON.parse(localStorage.getItem("device") || "null"); } catch { return null; } }
+  function saveDevice(d) { try { localStorage.setItem("device", JSON.stringify(d)); } catch {} }
+  const B64 = () => sodium.base64_variants.ORIGINAL;
+  function deviceName() {
+    const ua = navigator.userAgent;
+    const kind = /Android/i.test(ua) ? "Android phone" : /iPhone|iPad/i.test(ua) ? "iPhone" : /Mac/i.test(ua) ? "Mac" : /Windows/i.test(ua) ? "Windows PC" : "Device";
+    return `${kind} (added ${new Date().toLocaleDateString()})`;
+  }
+  async function saveDeviceSecret(d) {
+    await putSecret(`DEVICE_${d.id}`, JSON.stringify({ name: d.name, box_pub: d.pk, push: d.push || null }));
+    d.saved = true; saveDevice(d);
+  }
+  async function registerDevice() {
+    await sodium.ready;
+    let d = device();
+    if (!d) {
+      const kp = sodium.crypto_box_keypair();
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+      d = { id, name: deviceName(), pk: sodium.to_base64(kp.publicKey, B64()), sk: sodium.to_base64(kp.privateKey, B64()), push: null, saved: false };
+      saveDevice(d);
+    }
+    if (!d.saved || !state.names.includes(`DEVICE_${d.id}`)) await saveDeviceSecret(d);
+  }
+
+  async function fetchStatusFile() {
+    // Read straight from the repo (instant), falling back to the website copy.
+    try {
+      const r = await fetch(`${API}/contents/docs/status.json?ref=main&t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
+      if (r.ok) return await r.json();
+      if (r.status === 404) return null;
+    } catch {}
+    try { const r = await fetch(`status.json?t=${Date.now()}`, { cache: "no-store" }); if (r.ok) return await r.json(); } catch {}
+    return null;
+  }
+  async function loadResults() {
+    await sodium.ready;
+    const d = device(); if (!d) return;
+    const file = await fetchStatusFile();
+    const enc = (file && file.devices && file.devices[d.id]) || [];
+    const pk = sodium.from_base64(d.pk, B64()), sk = sodium.from_base64(d.sk, B64());
+    state.results = enc.map((c) => { try { return JSON.parse(sodium.to_string(sodium.crypto_box_seal_open(sodium.from_base64(c, B64()), pk, sk))); } catch { return null; } }).filter(Boolean);
+    renderResults(); renderAll(); updateBadge();
+  }
+  function seenAt() { try { return localStorage.getItem("seen_at") || ""; } catch { return ""; } }
+  function markSeen() { const r = state.results && state.results[0]; if (r) { try { localStorage.setItem("seen_at", r.time); } catch {} } updateBadge(); }
+  function updateBadge() {
+    const r = state.results && state.results[0];
+    const show = !!(r && (!r.ok || (r.applied.length && r.kind !== "check")) && r.time !== seenAt() && location.hash !== "#updates");
+    $("navBadge").classList.toggle("hidden", !show);
+  }
+
+  const kindName = { check: "Check", daily: "Daily run", manual: "Manual run" };
+  const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }); };
+  const fmtDay = (iso) => { const d = new Date(iso + "T12:00:00"); return isNaN(d) ? iso : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }); };
+  const list = (items, cls) => items.length ? `<ul class="lst ${cls}">${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  function chipFor(r) {
+    if (!r.ok) return `<span class="chip bad">Problem</span>`;
+    if (r.applied.length && r.kind !== "check") return `<span class="chip ok">Applied</span>`;
+    if (r.warnings.length) return `<span class="chip warn">Attention</span>`;
+    return `<span class="chip ok">All good</span>`;
+  }
+  function ipoTable(r) {
+    const byScrip = new Map();
+    for (const p of r.people || []) for (const i of p.issues || []) {
+      if (i.state === "skip") continue;
+      const e = byScrip.get(i.scrip) || { ...i, who: [] };
+      e.who.push(`${p.name}: ${i.note}`);
+      byScrip.set(i.scrip, e);
+    }
+    const items = [...byScrip.values()];
+    if (!items.length) return `<p class="help">No open IPOs, FPOs or right shares right now.</p>`;
+    return items.map((i) => `<div class="ipo"><div class="top"><b>${esc(i.scrip)}</b><span class="chip info">${i.close ? "Closes " + esc(fmtDay(i.close)) : ""}</span></div>
+      <div class="co">${esc(i.company || "")} · ${esc(i.type || "")}</div><div class="who">${i.who.map(esc).join("<br>")}</div></div>`).join("");
+  }
+  function resultBody(r) {
+    const people = (r.people || []).map((p) => p.error ? `✗ ${p.name}: ${p.error}` : `✓ ${p.name}: logged in`);
+    const email = r.email || {};
+    const emailLine = !email.configured ? "Email alerts are not set up." : email.error ? `Email failed: ${email.error}` : email.sent ? `Email sent ✓` : "No email needed this time.";
+    return (r.problems.length ? `<p class="sec-t">Problems</p>${list(r.problems, "bad")}` : "")
+      + (r.applied.length ? `<p class="sec-t">${r.kind === "check" ? "Would apply (test)" : "Applied"}</p>${list(r.applied, "ok")}` : "")
+      + (r.warnings.length ? `<p class="sec-t">Needs attention</p>${list(r.warnings, "warn")}` : "")
+      + `<p class="sec-t">Accounts</p>${list(people, "")}`
+      + `<p class="sec-t">Open issues</p>${ipoTable(r)}`
+      + `<p class="help" style="margin-top:14px">${esc(emailLine)}${r.run_url ? ` · <a href="${esc(r.run_url)}" target="_blank" rel="noopener">Technical details ↗</a>` : ""}</p>`;
+  }
+  function renderResults() {
+    const rs = state.results || [];
+    if (!rs.length) {
+      $("latest").innerHTML = `<div class="card"><b>No results yet</b><p class="help">Results appear here after the next run (10:15 AM and 1:00 PM every day). To see one now, run a <a href="#test">Check</a>.</p></div>`;
+      $("histCard").classList.add("hidden"); return;
+    }
+    const r = rs[0];
+    $("latest").innerHTML = `<div class="card"><div class="res-head"><div><span class="when">${esc(kindName[r.kind] || "Run")}</span><small>${esc(fmtTime(r.time))}</small></div>${chipFor(r)}</div>${resultBody(r)}</div>`;
+    $("histCard").classList.toggle("hidden", rs.length < 2);
+    $("history").innerHTML = rs.slice(1).map((x) => `<details class="hist"><summary><span><b>${esc(kindName[x.kind] || "Run")}</b><br><small class="help" style="margin:0">${esc(fmtTime(x.time))}</small></span>${chipFor(x)}</summary><div class="body">${resultBody(x)}</div></details>`).join("");
+  }
+
+  // Watch a run we just started, then show its result.
+  let watching = null;
+  function watchRun() {
+    clearInterval(watching);
+    const started = Date.now();
+    watching = setInterval(async () => {
+      if (Date.now() - started > 6 * 60000) return clearInterval(watching);
+      try {
+        const runs = await gh("/actions/workflows/auto-ipo.yml/runs?per_page=3");
+        state.runs = runs.workflow_runs || []; renderRuns();
+        const r = state.runs[0];
+        if (r && r.status === "completed" && new Date(r.created_at) > started - 120000) {
+          clearInterval(watching);
+          setTimeout(async () => { await loadResults().catch(() => {}); toast(r.conclusion === "success" ? "Check finished ✓ See Updates" : "Check finished with a problem. See Updates"); }, 5000);
+        }
+      } catch {}
+    }, 15000);
+  }
+
+  // ---------- phone notifications (Web Push, sent by the bot itself; no server needed)
+  const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  function renderPush() {
+    const d = device();
+    if (!pushSupported) {
+      $("pushState").textContent = "This browser can't show notifications. Install the app from Chrome to use them.";
+      $("pushBtn").classList.add("hidden"); return;
+    }
+    if (Notification.permission === "denied") {
+      $("pushState").innerHTML = "Blocked. To allow: long-press the app icon → <b>App info</b> → <b>Notifications</b> → on. Then tap Turn on.";
+      $("pushBtn").textContent = "Turn on"; $("pushBtn").classList.remove("hidden"); return;
+    }
+    const on = !!(d && d.push) && Notification.permission === "granted";
+    $("pushState").textContent = on ? "On: you'll be told when it applies, when something goes wrong, and before a password expires." : "Off: turn on to get alerts on this phone.";
+    $("pushBtn").textContent = on ? "Turn off" : "Turn on";
+    $("pushBtn").className = on ? "btn ghost" : "btn";
+    $("pushBtn").classList.remove("hidden");
+  }
+  async function enablePush() {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { renderPush(); return note("pushMsg", "Notifications weren't allowed. Tap Turn on again and choose <b>Allow</b>.", "err"); }
+    await registerDevice();
+    const reg = await navigator.serviceWorker.ready;
+    const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe();
+    // A signing key just for this phone; the bot uses it to send notifications here.
+    const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"]);
+    const pub = await crypto.subtle.exportKey("raw", kp.publicKey);
+    const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pub });
+    const d = device(); d.push = { subscription: sub.toJSON(), vapid_private: jwk.d };
+    await saveDeviceSecret(d);
+    reg.showNotification("Notifications are on ✓", { body: "IPO Helper will tell you here when it applies or needs you.", icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: "ipo-helper-test" }).catch(() => {});
+    note("pushMsg", "<b>Done ✓</b> You should see a test notification now.", "ok");
+    renderPush();
+  }
+  async function disablePush() {
+    try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch {}
+    const d = device(); if (d) { d.push = null; await saveDeviceSecret(d); }
+    note("pushMsg", "Notifications are off for this phone.", "info");
+    renderPush();
+  }
+  $("pushBtn").onclick = (e) => busy(e.currentTarget, async () => {
+    try { (device() && device().push && Notification.permission === "granted") ? await disablePush() : await enablePush(); }
+    catch (err) { note("pushMsg", "Couldn't change notifications: " + esc(err.message || err), "err"); renderPush(); }
+  });
+  $("statusBox").addEventListener("click", (e) => { if (!e.target.closest("#refreshBtn")) location.hash = "updates"; });
 
   // ---------- install as app
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;

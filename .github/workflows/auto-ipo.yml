@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write   # to save the encrypted results file the app reads
 
 jobs:
   apply:
@@ -47,3 +47,14 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
           APPLY_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_on || 'last_day' }}
         run: python apply_ipo.py
+      - name: Save results for the app
+        if: always()
+        run: |
+          [ -f docs/status.json ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/status.json
+          git diff --cached --quiet && exit 0
+          git commit -q -m "Update app results [skip ci]"
+          for i in 1 2 3 4; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep $((i * 3)); done
+          exit 1

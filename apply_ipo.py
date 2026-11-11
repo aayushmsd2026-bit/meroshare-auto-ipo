@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from kitta import choose_kitta
+import status as app_status
 
 API = "https://webbackend.cdsc.com.np/api"
 NPT = ZoneInfo("Asia/Kathmandu")
@@ -314,10 +315,15 @@ class Report:
         self.applied: list[str] = []
         self.errors: list[str] = []
         self.warnings: dict[str, list[str]] = {}  # person name -> warnings
+        self.people: list[dict] = []  # structured per-person results for the app
+        self.email_error: str | None = None
+        self.email_sent = False
 
 
 def process_account(idx: int, acc: dict, subs: dict, today: date, report: Report) -> None:
     person = acc.get("name") or f"Account {idx}"
+    entry = {"name": person, "ok": False, "error": None, "warnings": [], "applied": [], "issues": []}
+    report.people.append(entry)
     log(f"\n=== Account #{idx} ===")
     for field in ("dp", "username", "password", "pin", "crn"):
         if not acc.get(field):
@@ -329,14 +335,16 @@ def process_account(idx: int, acc: dict, subs: dict, today: date, report: Report
     except LoginError as e:
         msg = str(e)
         if "expired" in msg.lower() or "credential" in msg.lower() or "password" in msg.lower():
-            report.warnings.setdefault(person, []).append(
-                f"{msg}. Log in at https://meroshare.cdsc.com.np, set a new password, then save it on the settings page."
-            )
+            w = f"{msg}. Log in at https://meroshare.cdsc.com.np, set a new password, then save it in the app."
+            report.warnings.setdefault(person, []).append(w)
+            entry["warnings"].append(w)
         raise
+    entry["ok"] = True
     me = ms.own_detail()
     for w in expiry_warnings(auth, me, today=today):
         log(f"   warning: {w}")
         report.warnings.setdefault(person, []).append(w)
+        entry["warnings"].append(w)
 
     issues = ms.applicable_issues()
     log(f"   {len(issues)} open issue(s) visible")
@@ -345,17 +353,25 @@ def process_account(idx: int, acc: dict, subs: dict, today: date, report: Report
     for issue in issues:
         scrip = issue.get("scrip", "?")
         title = f"{scrip} ({issue.get('companyName')}, {issue.get('shareTypeName')}, {issue.get('subGroup') or issue.get('shareGroupName')})"
+        close = parse_date(issue.get("issueCloseDate"))
+        item = {"scrip": scrip, "company": issue.get("companyName"), "type": issue.get("shareTypeName"),
+                "group": issue.get("subGroup") or issue.get("shareGroupName"),
+                "close": close.isoformat() if close else None, "state": "", "note": ""}
+        entry["issues"].append(item)
 
         kind, why = classify_issue(issue)
         if not kind:
             log(f" - skip {title}: {why}")
+            item.update(state="skip", note=why)
             continue
         if issue.get("action") in ("edit", "inProcess", "reapply") or issue.get("statusName") not in (None, "", "CREATE_APPROVE"):
             log(f" - skip {title}: already applied ({issue.get('action') or issue.get('statusName')})")
+            item.update(state="done", note="already applied")
             continue
         ok, why = is_apply_day(issue, today)
         if not ok:
             log(f" - wait {title}: {why}")
+            item.update(state="wait", note="will apply on the last day")
             continue
 
         detail = ms.issue_detail(issue["companyShareId"])
@@ -396,19 +412,27 @@ def process_account(idx: int, acc: dict, subs: dict, today: date, report: Report
             "bankId": bank_id,
         }
         line = f"{person}: {scrip} ({kind}) - {kitta} kitta, Rs {kitta * price:,.0f}"
+        item.update(kitta=kitta, amount=round(kitta * price), reason=reason)
         if DRY_RUN:
             log("   DRY_RUN: not submitting")
             report.applied.append(line + " [test run, not submitted]")
+            item.update(state="would", note=f"would apply {kitta} kitta (test)")
             continue
         success, msg = ms.apply(payload)
         log(f"   {'APPLIED' if success else 'FAILED'}: {msg}")
         if success:
             report.applied.append(line)
+            entry["applied"].append({"scrip": scrip, "kind": kind, "kitta": kitta, "amount": round(kitta * price)})
+            item.update(state="applied", note=f"applied {kitta} kitta")
         else:
             report.errors.append(f"{person}: {scrip} failed - {msg}")
+            item.update(state="failed", note=msg)
 
 
 # ---------------------------------------------------------------- notifications
+
+EMAIL_RESULT: dict = {"sent": 0, "error": None, "configured": bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_APP_PASSWORD"))}
+
 
 def send_email(to: list[str], subject: str, body: str) -> None:
     user, pw = os.getenv("EMAIL_USER"), os.getenv("EMAIL_APP_PASSWORD")
@@ -425,8 +449,10 @@ def send_email(to: list[str], subject: str, body: str) -> None:
             s.login(user, pw)
             s.send_message(msg)
         log(f"email sent: {subject}")
+        EMAIL_RESULT["sent"] += 1
     except Exception as e:
         log(f"!! email failed: {e}")
+        EMAIL_RESULT["error"] = str(e)[:300]
 
 
 def notify(report: Report, accounts: list[dict], morning: bool) -> None:
@@ -483,8 +509,14 @@ def main() -> int:
         except Exception as e:  # keep going for the other family members
             log(f"   ERROR for account #{i}: {type(e).__name__}")
             report.errors.append(f"{acc.get('name') or f'Account {i}'}: {e}")
+            if report.people and report.people[-1]["name"] == (acc.get("name") or f"Account {i}"):
+                report.people[-1]["error"] = str(e)
 
     notify(report, accounts, morning)
+    try:
+        app_status.publish(report, now=now, dry_run=DRY_RUN, morning=morning, email=EMAIL_RESULT, log=log)
+    except Exception as e:  # never let the app update break the run
+        log(f"!! could not update the app: {type(e).__name__}: {e}")
     return 1 if report.errors else 0
 
 
