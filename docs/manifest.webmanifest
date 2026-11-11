@@ -1,0 +1,22 @@
+{
+  "id": "./",
+  "name": "IPO Helper",
+  "short_name": "IPO Helper",
+  "description": "Applies for IPOs on MeroShare for your family, automatically.",
+  "start_url": "./#home",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBFAF5",
+  "theme_color": "#165E83",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Change a password", "short_name": "Password", "url": "./#password", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Check everything", "short_name": "Check", "url": "./#test", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

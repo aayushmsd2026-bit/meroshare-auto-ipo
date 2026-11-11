@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#165E83">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="IPO Helper">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>IPO Helper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,9 +58,10 @@
       --field: #1A1B23; --shadow: none;
     }
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+  button, a, summary { touch-action: manipulation; }
+  body { margin: 0; overscroll-behavior-y: contain; background: var(--bg); color: var(--text); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
   a { color: var(--primary); }
   .hidden { display: none !important; }
 
@@ -73,7 +80,39 @@
   header.top h1 { margin: 0; font: 700 1.45rem/1.2 "Shippori Mincho", Georgia, serif; letter-spacing: .02em; }
   header.top p { margin: 2px 0 0; font-size: .92rem; opacity: .9; }
 
-  main { max-width: 560px; margin: 0 auto; padding: 18px 16px 80px; }
+  main { max-width: 560px; margin: 0 auto; padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
+  body.no-nav main { padding-bottom: 40px; }
+  header.top .in { padding-top: calc(22px + env(safe-area-inset-top)); }
+  body.sub header.top .in { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: 10px; }
+  body.sub header.top p { display: none; }
+  body.sub header.top h1 { font-size: 1.15rem; }
+  body.sub .seal { width: 34px; height: 34px; font-size: 17px; }
+
+  /* Bottom navigation (app style) */
+  nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; justify-content: center;
+    background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -2px 12px rgba(0,0,0,.05); }
+  nav.bottom .in { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; max-width: 560px; }
+  nav.bottom button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 8px 4px 10px;
+    font: inherit; font-size: .76rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; position: relative; }
+  nav.bottom button .pill { display: grid; place-items: center; width: 56px; height: 30px; border-radius: 15px; }
+  nav.bottom button[aria-current="page"] { color: var(--primary); }
+  nav.bottom button[aria-current="page"] .pill { background: var(--tint); }
+  nav.bottom button:active .pill { background: var(--tint); }
+  body.typing nav.bottom, body.no-nav nav.bottom { display: none; }
+
+  /* Install card */
+  .install { display: flex; gap: 14px; align-items: center; padding: 16px; margin-bottom: 14px; border-radius: 14px;
+    background: var(--accent-soft); border: 1px solid transparent; }
+  .install img { flex: none; width: 52px; height: 52px; border-radius: 12px; }
+  .install .tx { flex: 1; }
+  .install .tx .h { display: block; font-weight: 700; }
+  .install .tx small { display: block; color: var(--muted); line-height: 1.45; }
+  .install .btn { width: auto; min-height: 44px; margin: 0; padding: 8px 16px; background: var(--accent); border-color: var(--accent); color: #fff; }
+  .install .x { align-self: flex-start; font: inherit; font-size: 1.2rem; line-height: 1; color: var(--muted); background: none; border: 0; padding: 4px; cursor: pointer; }
+  .refresh { flex: none; margin-left: auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.5); border: 0; color: var(--text); cursor: pointer; }
+  @media (prefers-color-scheme: dark) { .refresh { background: rgba(255,255,255,.08); } }
+  .refresh.spinning svg { animation: spin .8s linear infinite; }
   h2 { font: 700 1.3rem/1.3 "Shippori Mincho", Georgia, serif; margin: 4px 0 6px; }
   h3 { font-size: 1.02rem; margin: 18px 0 6px; }
   .sub { color: var(--muted); margin: 0 0 16px; }
@@ -161,10 +200,11 @@
   .note.ok { background: var(--ok-soft); color: var(--text); border-left: 4px solid var(--ok); }
   .note.err { background: var(--err-soft); color: var(--text); border-left: 4px solid var(--err); }
   .note.info { background: var(--tint); color: var(--text); border-left: 4px solid var(--primary); }
-  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 14px 18px; border-radius: 12px; background: var(--sumi); color: #fff; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+  .toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 14px 18px; border-radius: 12px; background: var(--sumi); color: #fff; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
   @media (prefers-color-scheme: dark) { .toast { background: #F3F1E8; color: #16161E; } }
   footer { text-align: center; font-size: .85rem; color: var(--muted); margin-top: 24px; }
   footer button { font: inherit; color: var(--muted); text-decoration: underline; background: none; border: 0; cursor: pointer; }
+  body.no-nav .toast, body.typing .toast { bottom: 20px; }
   @media (max-width: 360px) { .tiles { grid-template-columns: 1fr; } .two { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -175,6 +215,8 @@
   <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M1.5 21c0-3.9 3.4-7 7.5-7s7.5 3.1 7.5 7M16 4.5a4 4 0 0 1 0 7M18 14.5c2.6.8 4.5 3.3 4.5 6.5"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="m3 6 9 7 9-7"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
 </svg>
 
@@ -220,7 +262,15 @@
 
   <!-- ============ HOME ============ -->
   <section id="v-home" class="view hidden">
-    <div id="statusBox" class="status"><span class="dot"></span><div><b id="statusTitle">Checking…</b><small id="statusSub"></small></div></div>
+    <div id="installCard" class="install hidden">
+      <img src="icons/icon-192.png" alt="">
+      <div class="tx"><span class="h">Install as an app</span><small id="installHow">Open it from your home screen like any other app.</small></div>
+      <button class="btn" id="installBtn">Install</button>
+      <button class="x" id="installX" aria-label="Hide">×</button>
+    </div>
+
+    <div id="statusBox" class="status"><span class="dot"></span><div><b id="statusTitle">Checking…</b><small id="statusSub"></small></div>
+      <button class="refresh" id="refreshBtn" aria-label="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button></div>
 
     <div class="card hidden" id="setupCard">
       <h2 style="margin-top:0">Finish setting up</h2>
@@ -259,7 +309,6 @@
 
   <!-- ============ CHANGE PASSWORD ============ -->
   <section id="v-password" class="view hidden">
-    <button class="back" data-go="home"><svg class="i"><use href="#i-back"/></svg>Home</button>
     <h2>Change a password</h2>
     <p class="sub">First change the password on the MeroShare website or app. Then type the <b>same new password</b> here.</p>
     <div class="card">
@@ -338,7 +387,6 @@
 
   <!-- ============ PEOPLE ============ -->
   <section id="v-people" class="view hidden">
-    <button class="back" data-go="home"><svg class="i"><use href="#i-back"/></svg>Home</button>
     <h2>Family list</h2>
     <p class="sub">The bot applies for everyone here.</p>
     <div class="card" id="peopleList"></div>
@@ -380,7 +428,6 @@
 
   <!-- ============ TEST ============ -->
   <section id="v-test" class="view hidden">
-    <button class="back" data-go="home"><svg class="i"><use href="#i-back"/></svg>Home</button>
     <h2>Check everything</h2>
     <p class="sub">Logs in to every account and looks at open IPOs <b>without applying</b>. The result comes to your email in about 2 minutes.</p>
     <div class="card">
@@ -394,9 +441,19 @@
   </section>
 
   <footer class="hidden" id="foot">
-    Connected to <span id="repoName"></span> · <button id="forgetBtn">Disconnect this device</button>
+    Connected to <span id="repoName"></span><br><button id="forgetBtn">Disconnect this device</button>
+    <span id="footInstall" class="hidden"> · <button id="footInstallBtn">Install as app</button></span>
   </footer>
 </main>
+
+<nav class="bottom hidden" id="nav" aria-label="Main">
+  <div class="in">
+    <button data-go="home"><span class="pill"><svg class="i"><use href="#i-home"/></svg></span>Home</button>
+    <button data-go="people"><span class="pill"><svg class="i"><use href="#i-people"/></svg></span>Family</button>
+    <button data-go="password"><span class="pill"><svg class="i"><use href="#i-key"/></svg></span>Password</button>
+    <button data-go="test"><span class="pill"><svg class="i"><use href="#i-play"/></svg></span>Check</button>
+  </div>
+</nav>
 
 <script src="vendor/libsodium.js"></script>
 <script src="vendor/libsodium-wrappers.js"></script>
@@ -561,6 +618,12 @@
     if (!token) v = "connect";
     views.forEach((x) => $("v-" + x).classList.toggle("hidden", x !== v));
     $("foot").classList.toggle("hidden", !token);
+    $("nav").classList.toggle("hidden", !token);
+    document.body.classList.toggle("no-nav", !token);
+    document.body.classList.toggle("sub", v !== "home" && v !== "connect");
+    document.querySelectorAll("#nav button").forEach((b) => {
+      if (b.dataset.go === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
     window.scrollTo(0, 0);
     if (v === "test" && token) refresh().catch(() => {});
   }
@@ -704,6 +767,60 @@
       setTimeout(() => refresh().catch(() => {}), 90000);
     } catch (err) { note("testMsg", err.message, "err"); }
   });
+
+  // ---------- install as app
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  let deferredPrompt = null;
+  const dismissed = () => { try { return localStorage.getItem("install_hidden") === "1"; } catch { return false; } };
+  function showInstall(canPrompt) {
+    if (standalone) return;
+    $("footInstall").classList.remove("hidden");
+    $("installBtn").classList.toggle("hidden", !canPrompt);
+    $("installHow").innerHTML = canPrompt ? "Open it from your home screen like any other app."
+      : "In Chrome, tap the <b>⋮</b> menu at the top right, then <b>Add to Home screen</b> or <b>Install app</b>.";
+    if (!dismissed()) $("installCard").classList.remove("hidden");
+  }
+  async function doInstall() {
+    if (!deferredPrompt) { showInstall(false); $("installCard").classList.remove("hidden"); location.hash = "home"; return; }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (outcome === "accepted") { $("installCard").classList.add("hidden"); $("footInstall").classList.add("hidden"); toast("Installed ✓ Find IPO Helper on your home screen"); }
+  }
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; showInstall(true); });
+  window.addEventListener("appinstalled", () => { $("installCard").classList.add("hidden"); $("footInstall").classList.add("hidden"); });
+  $("installBtn").onclick = doInstall;
+  $("footInstallBtn").onclick = doInstall;
+  $("installX").onclick = () => { $("installCard").classList.add("hidden"); try { localStorage.setItem("install_hidden", "1"); } catch {} };
+  // If Chrome hasn't offered the install prompt after a few seconds, show the menu instructions instead.
+  setTimeout(() => { if (!deferredPrompt) showInstall(false); }, 4000);
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+  // ---------- mobile niceties
+  // Hide the bottom bar while typing so it never covers the keyboard area.
+  document.addEventListener("focusin", (e) => { if (e.target.matches("input, select")) document.body.classList.add("typing"); });
+  document.addEventListener("focusout", () => setTimeout(() => {
+    if (!document.activeElement || !document.activeElement.matches("input, select")) document.body.classList.remove("typing");
+  }, 100));
+  // Keep the focused field visible above the keyboard.
+  document.addEventListener("focusin", (e) => { if (e.target.matches("input")) setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300); });
+  // Pressing Enter/Next on the keyboard moves to the next field, or saves on the last one.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || !e.target.matches("input")) return;
+    const view = e.target.closest(".view"); if (!view) return;
+    e.preventDefault();
+    const fields = [...view.querySelectorAll("input:not([type=hidden]), select")].filter((f) => f.offsetParent !== null);
+    const i = fields.indexOf(e.target);
+    if (i >= 0 && i < fields.length - 1) fields[i + 1].focus();
+    else { e.target.blur(); const b = view.querySelector(".btn:not(.ghost)"); if (b) b.click(); }
+  });
+  $("refreshBtn").onclick = async () => {
+    $("refreshBtn").classList.add("spinning");
+    try { await refresh(); toast("Up to date"); } catch (e) { toast("Couldn't refresh. Check your internet."); }
+    $("refreshBtn").classList.remove("spinning");
+  };
+  // Refresh when coming back to the app.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && token) refresh().catch(() => {}); });
 
   // ---------- start
   token = store.get();
