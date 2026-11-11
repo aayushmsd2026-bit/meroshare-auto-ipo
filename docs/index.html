@@ -939,18 +939,19 @@
   function watchRun() {
     clearInterval(watching);
     const started = Date.now();
-    watching = setInterval(async () => {
-      if (Date.now() - started > 6 * 60000) return clearInterval(watching);
+    const tick = async () => {
       try {
         const runs = await gh("/actions/workflows/auto-ipo.yml/runs?per_page=3");
         state.runs = runs.workflow_runs || []; renderRuns();
         const r = state.runs[0];
-        if (r && r.status === "completed" && new Date(r.created_at) > started - 120000) {
+        if (r && r.status === "completed" && new Date(r.created_at) > started - 30000) {
           clearInterval(watching);
           setTimeout(async () => { await loadResults().catch(() => {}); toast(r.conclusion === "success" ? "Check finished ✓ See Updates" : "Check finished with a problem. See Updates"); }, 5000);
         }
       } catch {}
-    }, 15000);
+    };
+    setTimeout(tick, 5000);
+    watching = setInterval(() => { if (Date.now() - started > 6 * 60000) return clearInterval(watching); tick(); }, 15000);
   }
 
   // ---------- phone notifications (Web Push, sent by the bot itself; no server needed)
