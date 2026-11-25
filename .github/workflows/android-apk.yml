@@ -35,19 +35,14 @@ jobs:
           fi
         working-directory: .
       - uses: actions/checkout@v4
-        if: steps.seed.outputs.ready == 'true'
       - uses: actions/setup-java@v4
-        if: steps.seed.outputs.ready == 'true'
         with:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-        if: steps.seed.outputs.ready == 'true'
       - name: Test the core logic
-        if: steps.seed.outputs.ready == 'true'
         run: ./gradlew -p core test --no-daemon
       - name: Use the latest DP list
-        if: steps.seed.outputs.ready == 'true'
         run: cp ../docs/dps.json app/src/main/assets/dps.json
       - name: Re-create the signing key from the secret seed
         if: steps.seed.outputs.ready == 'true'
@@ -61,7 +56,6 @@ jobs:
           mkdir -p keystore
           python3 ../tools/make_keystore.py keystore/ipo-helper.p12 "$pw"
       - name: Build the APK
-        if: steps.seed.outputs.ready == 'true'
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: 1.0.${{ github.run_number }}
