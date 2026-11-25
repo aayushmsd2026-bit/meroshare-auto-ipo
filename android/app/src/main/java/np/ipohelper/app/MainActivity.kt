@@ -104,6 +104,7 @@ class MainActivity : Activity() {
                 .put("batteryUnrestricted", pm.isIgnoringBatteryOptimizations(packageName))
                 .put("manufacturer", Build.MANUFACTURER)
                 .put("version", packageManager.getPackageInfo(packageName, 0).versionName)
+                .put("update", AppUpdates.info(ctx))
                 .toString()
         }
 
@@ -188,6 +189,31 @@ class MainActivity : Activity() {
                     for (i in 0 until list.length()) list.getJSONObject(i).let { out.put(JSONObject().put("code", it.optString("code")).put("name", it.optString("name"))) }
                     JSONObject().put("ok", true).put("dps", out)
                 }.getOrElse { JSONObject().put("ok", false).put("error", it.message) }
+                reply(callbackId, result)
+            }
+        }
+
+        /** Look for a newer version now (force) or if not checked recently. */
+        @JavascriptInterface
+        fun checkUpdate(callbackId: String, force: Boolean) {
+            worker.execute {
+                val result = runCatching { JSONObject().put("ok", true).put("update", AppUpdates.check(ctx, force)) }
+                    .getOrElse { JSONObject().put("ok", false).put("error", it.message ?: "Couldn't check for updates") }
+                reply(callbackId, result)
+            }
+        }
+
+        /** Download the update and open Android's install screen. */
+        @JavascriptInterface
+        fun installUpdate(callbackId: String) {
+            if (!AppUpdates.canInstall(ctx)) {
+                runOnUiThread { AppUpdates.openInstallPermission(ctx) }
+                reply(callbackId, JSONObject().put("ok", false).put("needPermission", true))
+                return
+            }
+            worker.execute {
+                val result = runCatching { AppUpdates.downloadAndInstall(ctx); JSONObject().put("ok", true) }
+                    .getOrElse { JSONObject().put("ok", false).put("error", it.message ?: "Update failed") }
                 reply(callbackId, result)
             }
         }

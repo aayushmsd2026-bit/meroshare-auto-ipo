@@ -66,6 +66,8 @@ object Background {
         } finally {
             Store.lock.unlock()
         }
+        // Quietly look for a newer app version; it's shown in the app, not as a notification.
+        runCatching { AppUpdates.check(ctx, force = false) }
     }
 
     fun createChannel(ctx: Context) {

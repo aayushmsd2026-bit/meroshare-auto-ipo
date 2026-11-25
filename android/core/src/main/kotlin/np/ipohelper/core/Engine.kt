@@ -16,7 +16,7 @@ import java.util.Locale
  *  - 9:00 AM to 4:45 PM: once a day, log in to every account, note open issues, and apply for the ones
  *    whose apply day is today. Later ticks that day retry anything that is due but not yet applied.
  *  - From 2:00 PM: if something due today still isn't applied, warn so you can apply yourself before 5 PM.
- *  - From 6:00 PM: heads-up for issues the app will apply for tomorrow.
+ * Notifications are only for problems; everything else is shown in the app.
  */
 class Engine(
     private val newClient: () -> MeroShare = { MeroShare() },
@@ -26,7 +26,6 @@ class Engine(
         val WINDOW_START: LocalTime = LocalTime.of(9, 0)
         val WINDOW_END: LocalTime = LocalTime.of(16, 45)
         val WARN_FROM: LocalTime = LocalTime.of(14, 0)
-        val EVENING: LocalTime = LocalTime.of(18, 0)
         const val EXPIRY_WARN_DAYS = 10
         private val rupees = NumberFormat.getIntegerInstance(Locale("en", "IN"))
         fun rs(amount: Long) = "Rs " + rupees.format(amount)
@@ -67,22 +66,6 @@ class Engine(
             }
         }
 
-        // Evening heads-up for tomorrow's applications.
-        if (!time.isBefore(EVENING)) {
-            val tomorrow = today.plusDays(1)
-            for ((scrip, info) in state.issues) {
-                val close = info.close?.let(LocalDate::parse) ?: continue
-                if (info.kind == null || Rules.applyDate(close, state.mode) != tomorrow) continue
-                val who = active.filter { p -> state.status[p.id]?.get(scrip)?.state == "wait" }
-                if (who.isEmpty()) continue
-                val key = "heads:$scrip:$tomorrow"
-                if (key in state.notified) continue
-                state.notified[key] = today.toString()
-                notices += Notice(key, "Applying for $scrip tomorrow",
-                    "${info.company} (${info.kind}). Keep your phone on and online in the morning. It will apply for ${who.joinToString { it.name }}.")
-            }
-        }
-
         prune(state, today)
         return Outcome(record, notices)
     }
@@ -106,12 +89,6 @@ class Engine(
         val fresh = linkedMapOf<String, IssueInfo>()
         val notices = mutableListOf<Notice>()
         val pendingKeys = mutableListOf<String>()
-
-        fun once(key: String): Boolean {
-            if (!dryRun && key in state.notified) return false
-            if (!dryRun) pendingKeys += key
-            return true
-        }
 
         val active = people.filter { it.enabled }
         if (active.isEmpty()) problems += "Nobody is added yet. Add your family in the app."
@@ -196,7 +173,6 @@ class Engine(
                         set("applied", "applied $kitta kitta", kitta, amount)
                         lines += "$scrip: applied $kitta kitta (${rs(amount)})"
                         applied += "${p.name}: $scrip $kitta kitta (${rs(amount)})"
-                        once("applied:${p.id}:$scrip")
                     } else {
                         set("failed", msg)
                         lines += "$scrip: couldn't apply - $msg"
@@ -226,26 +202,15 @@ class Engine(
         state.history.add(0, record)
         while (state.history.size > AppState.HISTORY) state.history.removeAt(state.history.size - 1)
 
-        // Notifications
-        if (dryRun) {
-            notices += Notice("check:$stamp", if (problems.isEmpty()) "Check finished ✓" else "Check found a problem",
-                problems.firstOrNull() ?: if (applied.isEmpty()) "All ${active.size} accounts logged in. Nothing to apply today."
-                else "Would apply: " + applied.joinToString("; ") { it.removeSuffix(" - test, not applied") })
-        } else {
-            if (applied.isNotEmpty() && pendingKeys.any { it.startsWith("applied:") }) {
-                val scrips = applied.map { it.substringAfter(": ").substringBefore(" ") }.distinct()
-                notices += Notice("applied:$stamp", "Applied: ${scrips.joinToString()}", applied.joinToString("\n"))
-            }
+        // Notifications only when something went wrong in an automatic run (each problem once a day).
+        // Successful applications, checks and expiry reminders are shown in the app only.
+        if (!dryRun) {
             val failKey = "problems:$today:" + problems.sorted().joinToString("|").hashCode()
             if (problems.isNotEmpty() && failKey !in state.notified) {
                 pendingKeys += failKey
                 notices += Notice(failKey, "IPO Helper: problem", problems.take(3).joinToString("\n") +
-                    (if (problems.size > 3) "\n+${problems.size - 3} more" else "") + "\nIt will try again in about an hour.")
-            }
-            val warnKey = "warn:$today"
-            if (warnings.isNotEmpty() && warnKey !in state.notified) {
-                pendingKeys += warnKey
-                notices += Notice(warnKey, "MeroShare: action needed", warnings.joinToString("\n"))
+                    (if (problems.size > 3) "\n+${problems.size - 3} more" else "") +
+                    (if (retry) "\nIt will try again in about an hour." else "\nOpen the app to fix it."))
             }
             pendingKeys.forEach { state.notified[it] = today.toString() }
         }

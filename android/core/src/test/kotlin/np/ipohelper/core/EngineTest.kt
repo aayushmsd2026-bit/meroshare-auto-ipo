@@ -97,9 +97,9 @@ class EngineTest {
         assertEquals("skip", st.status["p1"]!!["DEB"]!!.state)
         assertEquals("skip", st.status["p1"]!!["FE"]!!.state)
         assertEquals("done", st.status["p1"]!!["DONE"]!!.state)
-        val n = out.notices.single()
-        assertTrue(n.title.startsWith("Applied:") && "GOOD" in n.title && "RGT" in n.title, n.title)
-        assertTrue("Rs 34,500" in n.body, n.body)
+        // Everything went fine: no notification, just the record in the app
+        assertTrue(out.notices.isEmpty(), out.notices.toString())
+        assertTrue(out.record!!.applied.any { "RGT 345 kitta (Rs 34,500)" in it }, out.record!!.applied.toString())
         // the payload carries the person's PIN and CRN
         assertEquals("1234", applied.first().getString("transactionPIN"))
         assertEquals("CRN1", applied.first().getString("crnNumber"))
@@ -122,17 +122,20 @@ class EngineTest {
         val out = engine().run(listOf(me), st, at(11), dryRun = true)
         assertTrue(applied.isEmpty())
         assertTrue(out.record!!.applied.all { "test, not applied" in it })
-        assertEquals("Check finished ✓", out.notices.single().title)
+        assertTrue(out.notices.isEmpty())
     }
 
     @Test fun `wrong password is reported once and not retried`() {
         val st = AppState()
         val out = engine().tick(listOf(me, dad), st, at(9, 30))
-        assertTrue(out.notices.any { it.title == "IPO Helper: problem" && "Dad" in it.body && "Invalid credentials" in it.body })
+        val n = out.notices.single()
+        assertTrue(n.title == "IPO Helper: problem" && "Dad" in n.body && "Invalid credentials" in n.body && "Open the app" in n.body, n.body)
         assertEquals(2, authCalls)
         // Later ticks: Me has nothing pending, Dad is not retried (protects the account from lockout)
-        engine().tick(listOf(me, dad), st, at(10, 30))
-        engine().tick(listOf(me, dad), st, at(11, 30))
+        // Later ticks: Me has nothing pending, Dad is not retried (protects the account from lockout),
+        // and the same problem is not notified again the same day.
+        assertTrue(engine().tick(listOf(me, dad), st, at(10, 30)).notices.isEmpty())
+        assertTrue(engine().tick(listOf(me, dad), st, at(11, 30)).notices.isEmpty())
         assertEquals(2, authCalls)
     }
 
@@ -142,19 +145,18 @@ class EngineTest {
         val out = engine().tick(listOf(me), st, at(9, 30))
         assertTrue(st.retry)
         assertTrue(out.record!!.problems.single().contains("Couldn't reach MeroShare"))
+        assertTrue("try again in about an hour" in out.notices.single().body)
         failNetwork = false
         engine().tick(listOf(me), st, at(10, 30))
         assertEquals(setOf("1" to "10", "6" to "345", "9" to "10"), appliedSet())
         assertFalse(st.retry)
     }
 
-    @Test fun `evening heads-up for tomorrow, once`() {
+    @Test fun `a smooth day sends no notifications at all`() {
         val st = AppState()
-        engine().tick(listOf(me), st, at(9, 30))
-        val eve = engine().tick(listOf(me), st, at(18, 30))
-        val n = eve.notices.single()
-        assertEquals("Applying for LATER tomorrow", n.title)
-        assertTrue(engine().tick(listOf(me), st, at(19, 30)).notices.isEmpty())
+        for (h in listOf(9, 10, 11, 14, 15, 18, 19, 22)) {
+            assertTrue(engine().tick(listOf(me), st, at(h, 30)).notices.isEmpty(), "notification at $h:30")
+        }
     }
 
     @Test fun `2 PM warning when something due today is still not applied`() {
@@ -178,8 +180,8 @@ class EngineTest {
         passwordExpiry = day.plusDays(5).toString()
         val st = AppState()
         val out = engine().tick(listOf(me), st, at(9, 30))
-        val w = out.notices.single { it.title == "MeroShare: action needed" }
-        assertTrue("MeroShare password expires in 5 days" in w.body, w.body)
+        assertTrue(out.notices.isEmpty())                  // shown in the app, not as a notification
+        assertTrue(out.record!!.warnings.single().contains("MeroShare password expires in 5 days"), out.record!!.warnings.toString())
     }
 
     @Test fun `state survives save and load`() {

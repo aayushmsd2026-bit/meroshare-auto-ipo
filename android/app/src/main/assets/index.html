@@ -261,6 +261,11 @@
 <main>
   <!-- ============ HOME ============ -->
   <section id="v-home" class="view">
+    <div id="updCard" class="install hidden">
+      <div class="tx"><span class="h">Update available</span><small id="updText"></small></div>
+      <button class="btn" id="updBtn">Update</button>
+    </div>
+    <div id="updMsg"></div>
     <div id="statusBox" class="status"><span class="dot"></span><div><b id="statusTitle">Loading…</b><small id="statusSub"></small></div></div>
 
     <div class="card hidden" id="setupCard">
@@ -280,7 +285,7 @@
 
     <div class="card" style="margin-top:14px">
       <h3 style="margin-top:0">What it does by itself</h3>
-      <p class="help" style="font-size:.95rem">Every hour from 9 AM it checks MeroShare from this phone. On the <b id="modeText">last day</b> of an IPO or FPO it applies for <b>10 kitta</b>; for right shares, the <b>full amount</b>. Mutual funds and debentures are skipped. If the phone is offline, it applies as soon as the internet is back. You get a notification each time.</p>
+      <p class="help" style="font-size:.95rem">Every hour from 9 AM it checks MeroShare from this phone. On the <b id="modeText">last day</b> of an IPO or FPO it applies for <b>10 kitta</b>; for right shares, the <b>full amount</b>. Mutual funds and debentures are skipped. If the phone is offline, it applies as soon as the internet is back. You only get a notification if something goes wrong.</p>
     </div>
   </section>
 
@@ -397,6 +402,8 @@
       <h3 style="margin-top:0">About</h3>
       <p class="help">Everything stays on this phone. Logins are encrypted with a key that never leaves the phone and are not included in backups. The app talks only to MeroShare.</p>
       <p class="help" id="versionLine"></p>
+      <button class="btn ghost" id="updCheck">Check for updates</button>
+      <div id="updCheckMsg"></div>
     </div>
   </section>
 </main>
@@ -429,7 +436,7 @@
   function call(name, ...args) { try { return JSON.parse(N[name](...args)); } catch (e) { return { ok: false, error: String(e.message || e) }; } }
   const waiting = {};
   window.onNative = (id, result) => { const f = waiting[id]; delete waiting[id]; if (f) f(result); };
-  function callAsync(name) { return new Promise((res) => { const id = name + Date.now() + Math.random(); waiting[id] = res; N[name](id); }); }
+  function callAsync(name, ...args) { return new Promise((res) => { const id = name + Date.now() + Math.random(); waiting[id] = res; N[name](id, ...args); }); }
   async function busy(btn, fn) {
     const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Please wait…`;
     try { await fn(); } finally { btn.disabled = false; btn.innerHTML = label; }
@@ -480,7 +487,33 @@
   const people = () => D.people || [];
   const nameOf = (id) => (people().find((p) => p.id === id) || {}).name || "?";
 
-  function render() { renderHome(); renderUpdates(); renderFamily(); renderSettings(); updateBadge(); }
+  function render() { renderHome(); renderUpdates(); renderFamily(); renderSettings(); renderUpdate(); updateBadge(); }
+
+  // ---------- app updates
+  function renderUpdate() {
+    const u = D.update || {}, a = u.available;
+    $("updCard").classList.toggle("hidden", !a);
+    if (a) $("updText").textContent = `Version ${a.name} is ready (you have ${u.currentName}). Your family's details stay.`;
+    $("versionLine").textContent = "Version " + (u.currentName || D.version || "") + (u.checkedAt ? " · checked for updates " + ago(new Date(u.checkedAt).toISOString()) : "");
+  }
+  async function installUpdate(btn, msgId) {
+    await busy(btn, async () => {
+      note(msgId, "Downloading the update…", "info");
+      const r = await callAsync("installUpdate");
+      if (r.ok) note(msgId, "Tap <b>Install</b> on the screen Android shows. The app restarts with the new version.", "ok");
+      else if (r.needPermission) note(msgId, "Android needs your OK once: turn on <b>Allow from this source</b> for IPO Helper, come back, then tap <b>Update</b> again.", "info");
+      else note(msgId, esc(r.error), "err");
+    });
+  }
+  $("updBtn").onclick = (e) => installUpdate(e.currentTarget, "updMsg");
+  $("updCheck").onclick = (e) => busy(e.currentTarget, async () => {
+    const r = await callAsync("checkUpdate", true);
+    reload();
+    if (!r.ok) return note("updCheckMsg", esc(r.error), "err");
+    if (r.update.available) { note("updCheckMsg", `Version ${esc(r.update.available.name)} is available.`, "ok");
+      $("updCheckMsg").insertAdjacentHTML("beforeend", `<button class="btn" id="updNow">Update now</button>`); $("updNow").onclick = (ev) => installUpdate(ev.currentTarget, "updCheckMsg"); }
+    else note("updCheckMsg", "You have the latest version ✓", "ok");
+  });
 
   // ---------- home
   function renderHome() {
@@ -490,6 +523,7 @@
     if (!n) { box.className = "status warn"; $("statusTitle").textContent = "Not running yet"; $("statusSub").textContent = "Add your family to start."; }
     else if (failed.length) { box.className = "status bad"; $("statusTitle").textContent = `Login failed: ${failed.map((p) => p.name).join(", ")}`; $("statusSub").textContent = "Update the password to start again. Tap here."; box.onclick = () => (location.hash = "password"); }
     else if (last && !last.ok) { box.className = "status bad"; $("statusTitle").textContent = "Problem: tap to see"; $("statusSub").textContent = last.problems[0] || ""; box.onclick = () => (location.hash = "updates"); }
+    else if (last && last.warnings && last.warnings.length) { box.className = "status warn"; $("statusTitle").textContent = "Needs attention"; $("statusSub").textContent = last.warnings[0]; box.onclick = () => (location.hash = "updates"); }
     else { box.className = "status"; $("statusTitle").textContent = `Active for ${n} ${n === 1 ? "person" : "people"}`; $("statusSub").textContent = last ? "Last checked " + ago(last.time) : "First check today from 9 AM, or tap Check now"; box.onclick = () => (location.hash = "updates"); }
 
     const steps = [
@@ -665,7 +699,7 @@
   // ---------- settings
   function renderSettings() {
     document.querySelectorAll("input[name=mode]").forEach((r) => (r.checked = r.value === (D.state.mode || "LAST_DAY")));
-    $("notifState").textContent = D.canNotify ? "On ✓ You'll be told when it applies, when something goes wrong, and before a password expires." : "Off. Turn on to be told when it applies or needs you.";
+    $("notifState").textContent = D.canNotify ? "On ✓ You'll only be notified if something goes wrong, like a failed login or application." : "Off. Turn on so you're told if something goes wrong.";
     $("notifBtn").classList.toggle("hidden", !!D.canNotify);
     $("notifTest").classList.toggle("hidden", !D.canNotify);
     $("battState").textContent = D.batteryUnrestricted ? "Allowed ✓ Android won't stop the app from checking in the background." : "Android may pause the app to save battery and miss the last day. Tap Allow and choose Allow / Unrestricted.";
@@ -677,7 +711,6 @@
       : /huawei|honor/.test(m) ? "In <b>App launch</b> settings, set IPO Helper to <b>Manage manually</b> and allow all three options." : "";
     $("oemTip").innerHTML = oem ? `<div class="note info">${oem}<br><button class="btn ghost" id="appInfo" style="margin-top:10px">Open App info</button></div>` : "";
     if (oem) $("appInfo").onclick = () => N.openAppSettings();
-    $("versionLine").textContent = "Version " + (D.version || "");
   }
   document.querySelectorAll("input[name=mode]").forEach((r) => r.onchange = () => {
     const res = call("setMode", r.value);
@@ -694,6 +727,8 @@
   document.addEventListener("focusin", (e) => { if (e.target.matches(TYPING)) setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300); });
 
   route(); reload();
+  // Quietly look for a newer version (at most every few hours).
+  callAsync("checkUpdate", false).then((r) => { if (r && r.ok) reload(); });
 })();
 </script>
 
