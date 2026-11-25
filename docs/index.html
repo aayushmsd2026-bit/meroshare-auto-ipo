@@ -610,7 +610,12 @@
     // every time (tools/make_keystore.py), so app updates install over the old version.
     if (!state.names.includes("APP_SIGNING_SEED")) {
       const seed = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
-      try { await putSecret("APP_SIGNING_SEED", seed); state.names.push("APP_SIGNING_SEED"); } catch {}
+      try {
+        await putSecret("APP_SIGNING_SEED", seed); state.names.push("APP_SIGNING_SEED");
+        // ...and build the Android app for the first time.
+        await gh("/actions/workflows/android-apk.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: "main" }) });
+        toast("Building your Android app. It will be ready to download in about 5 minutes.");
+      } catch {}
     }
     try {
       const runs = await gh("/actions/workflows/auto-ipo.yml/runs?per_page=6");
