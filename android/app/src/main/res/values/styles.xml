@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ai">#165E83</color>
+    <color name="kinari">#FBFAF5</color>
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/ai</item>
+        <item name="android:navigationBarColor">@color/ai</item>
+        <item name="android:windowBackground">@color/kinari</item>
+        <item name="android:colorAccent">@color/ai</item>
+    </style>
+</resources>

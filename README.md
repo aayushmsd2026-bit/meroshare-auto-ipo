@@ -1,5 +1,11 @@
 # MeroShare Auto IPO
 
+> **Use the Android app.** MeroShare's firewall rejects logins from GitHub's servers abroad, so the
+> GitHub workflow below can't log in. The Android app in `android/` does the same job from your phone,
+> in Nepal: download it from the [latest release](https://github.com/aayushmsd2026-bit/meroshare-auto-ipo/releases/latest/download/ipo-helper.apk).
+> Family details stay on the phone, encrypted. Build: `.github/workflows/android-apk.yml`;
+> logic and tests: `android/core` (`cd android && ./gradlew -p core test`).
+
 Applies on MeroShare for you and your family automatically, on the **last day** of each issue. It runs on GitHub Actions twice a day (10:15 AM and 1:00 PM Nepal time), so no computer needs to be on.
 
 | Issue | What the bot does |

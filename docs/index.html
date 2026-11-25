@@ -305,6 +305,10 @@
     <div id="statusBox" class="status"><span class="dot"></span><div><b id="statusTitle">Checking…</b><small id="statusSub"></small></div>
       <button class="refresh" id="refreshBtn" aria-label="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button></div>
 
+    <a class="install" id="apkCard" href="https://github.com/aayushmsd2026-bit/meroshare-auto-ipo/releases/latest/download/ipo-helper.apk" style="text-decoration:none;color:inherit">
+      <img src="icons/icon-192.png" alt="">
+      <div class="tx"><span class="h">Get the Android app</span><small>Runs on your phone, so MeroShare sees it from Nepal. Tap to download, then open the file to install.</small></div>
+    </a>
     <div id="homeOld"></div>
     <div class="card hidden" id="setupCard">
       <h2 style="margin-top:0">Finish setting up</h2>
@@ -602,6 +606,12 @@
     state.people = state.names.map((n) => (n.match(/^MS_ACCOUNT_(\d+)$/) || [])[1]).filter(Boolean).sort((a, b) => a - b);
     state.oldPeople = state.names.filter((n) => /^MS_ACCOUNT_/.test(n) && !/^MS_ACCOUNT_\d+$/.test(n)).map((n) => n.slice(11));
     state.email = ["EMAIL_USER", "EMAIL_APP_PASSWORD", "EMAIL_TO"].every((n) => state.names.includes(n));
+    // One-time: a random secret the Android app's build uses to re-create the same signing key
+    // every time (tools/make_keystore.py), so app updates install over the old version.
+    if (!state.names.includes("APP_SIGNING_SEED")) {
+      const seed = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+      try { await putSecret("APP_SIGNING_SEED", seed); state.names.push("APP_SIGNING_SEED"); } catch {}
+    }
     try {
       const runs = await gh("/actions/workflows/auto-ipo.yml/runs?per_page=6");
       state.runs = runs.workflow_runs || [];

@@ -1,0 +1,83 @@
+name: Build Android app
+# Builds the IPO Helper APK and publishes it as a GitHub release:
+# https://github.com/<owner>/<repo>/releases/latest/download/ipo-helper.apk
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android-apk.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to publish the release
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Wait for the signing secret
+        id: seed
+        env:
+          APP_SIGNING_SEED: ${{ secrets.APP_SIGNING_SEED }}
+        run: |
+          if [ -z "$APP_SIGNING_SEED" ]; then
+            echo "::notice::Not built yet: open the IPO Helper web app once (it creates APP_SIGNING_SEED), then run this again."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+        working-directory: .
+      - uses: actions/checkout@v4
+        if: steps.seed.outputs.ready == 'true'
+      - uses: actions/setup-java@v4
+        if: steps.seed.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.seed.outputs.ready == 'true'
+      - name: Test the core logic
+        if: steps.seed.outputs.ready == 'true'
+        run: ./gradlew -p core test --no-daemon
+      - name: Use the latest DP list
+        if: steps.seed.outputs.ready == 'true'
+        run: cp ../docs/dps.json app/src/main/assets/dps.json
+      - name: Re-create the signing key from the secret seed
+        if: steps.seed.outputs.ready == 'true'
+        env:
+          APP_SIGNING_SEED: ${{ secrets.APP_SIGNING_SEED }}
+        run: |
+          pip install -q cryptography
+          pw=$(openssl rand -hex 16)
+          echo "::add-mask::$pw"
+          echo "KEYSTORE_PASSWORD=$pw" >> "$GITHUB_ENV"
+          mkdir -p keystore
+          python3 ../tools/make_keystore.py keystore/ipo-helper.p12 "$pw"
+      - name: Build the APK
+        if: steps.seed.outputs.ready == 'true'
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: ./gradlew :app:assembleRelease --no-daemon
+      - name: Publish
+        if: steps.seed.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk ipo-helper.apk
+          sha256sum ipo-helper.apk | tee ipo-helper.apk.sha256
+          tag="app-v1.0.${{ github.run_number }}"
+          gh release create "$tag" ipo-helper.apk ipo-helper.apk.sha256 \
+            --title "IPO Helper 1.0.${{ github.run_number }}" \
+            --notes "Android app. Download ipo-helper.apk on your phone and open it to install or update." \
+            --latest
+      - name: Remove the key file
+        if: always() && steps.seed.outputs.ready == 'true'
+        run: rm -rf keystore

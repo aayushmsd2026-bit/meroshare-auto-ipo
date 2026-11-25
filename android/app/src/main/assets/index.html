@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src file:; img-src data:">
+<title>IPO Helper</title>
+<style>
+  /* Colours from the traditional Japanese palette (日本の伝統色) */
+  :root {
+    --kinari:   #FBFAF5;  /* 生成り  cream background */
+    --gofun:    #FFFFFC;  /* 胡粉    card */
+    --sumi:     #2B2B2B;  /* 墨      ink text */
+    --nibi:     #6A6B6A;  /* 鈍色    secondary text */
+    --shironezu:#DCDDDD;  /* 白鼠    lines */
+    --ai:       #165E83;  /* 藍色    primary */
+    --ai-deep:  #0F4C6A;  /* 藍 (pressed) */
+    --kamenozoki:#E3EEF3; /* 瓶覗    pale indigo tint */
+    --shu:      #EB6101;  /* 朱色    accent */
+    --shu-soft: #FCE9DC;  /* 朱 tint */
+    --tokiwa:   #007B43;  /* 常磐色  success */
+    --tokiwa-soft:#E3F2EA;
+    --beni:     #D7003A;  /* 紅      danger */
+    --beni-soft:#FBE4EA;
+    --yamabuki: #F8B500;  /* 山吹    attention */
+    --on-primary: #FFFFFF;
+    --bg: var(--kinari); --card: var(--gofun); --text: var(--sumi); --muted: var(--nibi); --line: var(--shironezu);
+    --primary: var(--ai); --primary-press: var(--ai-deep); --tint: var(--kamenozoki);
+    --accent: var(--shu); --accent-soft: var(--shu-soft);
+    --ok: var(--tokiwa); --ok-soft: var(--tokiwa-soft); --err: var(--beni); --err-soft: var(--beni-soft);
+    --field: #FFFFFF; --shadow: 0 1px 2px rgba(43,43,43,.06), 0 4px 16px rgba(22,94,131,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161E;        /* 濡羽色 (night) */
+      --card: #20212B;      /* 消炭 */
+      --text: #F3F1E8;      /* 白練 */
+      --muted: #A9A9A0;     /* 薄鈍 */
+      --line: #34353F;
+      --primary: #5CA9CF;   /* 甕覗 → brighter 藍 for dark */
+      --primary-press: #4A93B8;
+      --on-primary: #0D1A22;
+      --tint: #1D2C36;
+      --accent: #F08A4B;    /* 柿色 */
+      --accent-soft: #3A2A20;
+      --ok: #4DB884;  --ok-soft: #1B2F25;
+      --err: #F0607E; --err-soft: #3A1E26;
+      --field: #1A1B23; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  button, a, summary { touch-action: manipulation; }
+  body { margin: 0; overscroll-behavior-y: contain; background: var(--bg); color: var(--text); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+  a { color: var(--primary); }
+  .hidden { display: none !important; }
+
+  /* Header with 青海波 (seigaiha) wave pattern */
+  header.top {
+    color: #fff; background-color: var(--ai);
+    background-image:
+      radial-gradient(circle at 100% 150%, var(--ai) 24%, rgba(255,255,255,.10) 24%, rgba(255,255,255,.10) 28%, var(--ai) 28%, var(--ai) 36%, rgba(255,255,255,.10) 36%, rgba(255,255,255,.10) 40%, transparent 40%),
+      radial-gradient(circle at 0 150%, var(--ai) 24%, rgba(255,255,255,.10) 24%, rgba(255,255,255,.10) 28%, var(--ai) 28%, var(--ai) 36%, rgba(255,255,255,.10) 36%, rgba(255,255,255,.10) 40%, transparent 40%),
+      radial-gradient(circle at 50% 100%, rgba(255,255,255,.10) 10%, var(--ai) 10%, var(--ai) 23%, rgba(255,255,255,.10) 23%, rgba(255,255,255,.10) 30%, var(--ai) 30%, var(--ai) 43%, rgba(255,255,255,.10) 43%, rgba(255,255,255,.10) 50%, var(--ai) 50%, var(--ai) 63%, rgba(255,255,255,.10) 63%, rgba(255,255,255,.10) 71%, transparent 71%);
+    background-size: 56px 28px;
+    border-bottom: 4px solid var(--shu);
+  }
+  header.top .in { max-width: 560px; margin: 0 auto; padding: 22px 16px 18px; display: flex; align-items: center; gap: 12px; }
+  .seal { flex: none; width: 44px; height: 44px; border-radius: 8px; background: var(--shu); color: #fff; display: grid; place-items: center; font: 700 22px/1 "Shippori Mincho", serif; box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+  header.top h1 { margin: 0; font: 700 1.45rem/1.2 "Shippori Mincho", Georgia, serif; letter-spacing: .02em; }
+  header.top p { margin: 2px 0 0; font-size: .92rem; opacity: .9; }
+
+  main { max-width: 560px; margin: 0 auto; padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
+  body.no-nav main { padding-bottom: 40px; }
+  header.top .in { padding-top: calc(22px + env(safe-area-inset-top)); }
+  body.sub header.top .in { padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: 10px; }
+  body.sub header.top p { display: none; }
+  body.sub header.top h1 { font-size: 1.15rem; }
+  body.sub .seal { width: 34px; height: 34px; font-size: 17px; }
+
+  /* Bottom navigation (app style) */
+  nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; justify-content: center;
+    background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -2px 12px rgba(0,0,0,.05); }
+  nav.bottom .in { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; max-width: 560px; }
+  nav.bottom button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 8px 4px 10px;
+    font: inherit; font-size: .76rem; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; position: relative; }
+  nav.bottom button .pill { display: grid; place-items: center; width: 52px; height: 30px; border-radius: 15px; position: relative; }
+  nav.bottom .badge { position: absolute; top: 2px; right: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--err); border: 2px solid var(--card); }
+
+  /* Updates */
+  .res-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .res-head .when { font-weight: 700; }
+  .res-head small { display: block; color: var(--muted); }
+  .chip { flex: none; display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .82rem; font-weight: 700; }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); }
+  .chip.bad { background: var(--err-soft); color: var(--err); }
+  .chip.warn { background: var(--accent-soft); color: var(--accent); }
+  .chip.info { background: var(--tint); color: var(--primary); }
+  .lst { list-style: none; margin: 8px 0 0; padding: 0; }
+  .lst li { position: relative; padding: 8px 0 8px 22px; border-bottom: 1px solid var(--line); font-size: .96rem; }
+  .lst li:last-child { border-bottom: 0; }
+  .lst li::before { content: ""; position: absolute; left: 4px; top: 16px; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .lst.bad li::before { background: var(--err); } .lst.ok li::before { background: var(--ok); } .lst.warn li::before { background: var(--accent); }
+  .sec-t { margin: 16px 0 0; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .ipo { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .ipo:last-child { border-bottom: 0; }
+  .ipo .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .ipo .top b { font-size: 1rem; }
+  .ipo .co { font-size: .88rem; color: var(--muted); }
+  .ipo .who { font-size: .88rem; margin-top: 4px; }
+  details.hist { border-bottom: 1px solid var(--line); }
+  details.hist:last-child { border-bottom: 0; }
+  details.hist summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 0; cursor: pointer; }
+  details.hist summary::-webkit-details-marker { display: none; }
+  details.hist .body { padding: 0 0 12px; }
+  .switch-row { display: flex; align-items: center; gap: 12px; }
+  .switch-row .tx { flex: 1; }
+  .switch-row .btn { width: auto; margin: 0; min-height: 44px; padding: 8px 16px; }
+  #statusBox { cursor: pointer; }
+  nav.bottom button[aria-current="page"] { color: var(--primary); }
+  nav.bottom button[aria-current="page"] .pill { background: var(--tint); }
+  nav.bottom button:active .pill { background: var(--tint); }
+  body.typing nav.bottom, body.no-nav nav.bottom { display: none; }
+
+  /* Install card */
+  .install { display: flex; gap: 14px; align-items: center; padding: 16px; margin-bottom: 14px; border-radius: 14px;
+    background: var(--accent-soft); border: 1px solid transparent; }
+  .install img { flex: none; width: 52px; height: 52px; border-radius: 12px; }
+  .install .tx { flex: 1; }
+  .install .tx .h { display: block; font-weight: 700; }
+  .install .tx small { display: block; color: var(--muted); line-height: 1.45; }
+  .install .btn { width: auto; min-height: 44px; margin: 0; padding: 8px 16px; background: var(--accent); border-color: var(--accent); color: #fff; }
+  .install .x { align-self: flex-start; font: inherit; font-size: 1.2rem; line-height: 1; color: var(--muted); background: none; border: 0; padding: 4px; cursor: pointer; }
+  .refresh { flex: none; margin-left: auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.5); border: 0; color: var(--text); cursor: pointer; }
+  @media (prefers-color-scheme: dark) { .refresh { background: rgba(255,255,255,.08); } }
+  .refresh.spinning svg { animation: spin .8s linear infinite; }
+  h2 { font: 700 1.3rem/1.3 "Shippori Mincho", Georgia, serif; margin: 4px 0 6px; }
+  h3 { font-size: 1.02rem; margin: 18px 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 8px 4px; font: inherit; font-weight: 600; color: var(--primary); background: none; border: 0; cursor: pointer; }
+
+  /* Buttons */
+  .btn { display: flex; width: 100%; justify-content: center; align-items: center; gap: 8px; min-height: 52px; margin-top: 18px; padding: 12px 18px; font: inherit; font-weight: 700; border-radius: 12px; border: 2px solid var(--primary); background: var(--primary); color: var(--on-primary); cursor: pointer; text-decoration: none; }
+  .btn:active { background: var(--primary-press); border-color: var(--primary-press); }
+  .btn.ghost { background: transparent; color: var(--primary); }
+  .btn.danger { background: transparent; color: var(--err); border-color: var(--err); }
+  .btn:disabled { opacity: .55; cursor: progress; }
+  .btn .spin { width: 18px; height: 18px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Home tiles */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tile { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 124px; padding: 16px; text-align: left; font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); cursor: pointer; }
+  .tile:active { background: var(--tint); }
+  .tile .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--tint); color: var(--primary); }
+  .tile.main { grid-column: 1 / -1; flex-direction: row; align-items: center; min-height: 0; background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+  .tile.main .ic { background: rgba(255,255,255,.18); color: inherit; }
+  .tile b { font-size: 1.04rem; }
+  .tile span.d { font-size: .88rem; color: var(--muted); line-height: 1.35; }
+  .tile.main span.d { color: inherit; opacity: .85; }
+  svg.i { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Status / checklist */
+  .status { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 14px; margin-bottom: 14px; background: var(--ok-soft); color: var(--text); border: 1px solid transparent; }
+  .status.warn { background: var(--accent-soft); }
+  .status.bad { background: var(--err-soft); }
+  .status .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--ok); }
+  .status.warn .dot { background: var(--accent); } .status.bad .dot { background: var(--err); }
+  .status small { display: block; color: var(--muted); }
+  ol.check { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  ol.check li { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  ol.check li:last-child { border-bottom: 0; }
+  ol.check .n { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .9rem; border: 2px solid var(--line); color: var(--muted); }
+  ol.check li.done .n { background: var(--ok); border-color: var(--ok); color: #fff; }
+  ol.check li.next .n { border-color: var(--accent); color: var(--accent); }
+  ol.check .t { flex: 1; }
+  ol.check button { font: inherit; font-weight: 700; color: var(--primary); background: none; border: 0; padding: 8px; cursor: pointer; }
+
+  /* Forms */
+  label.f { display: block; font-weight: 600; margin: 16px 0 6px; }
+  label.f .opt { font-weight: 400; color: var(--muted); }
+  input, select { width: 100%; min-height: 50px; padding: 12px 14px; font: inherit; color: var(--text); background: var(--field); border: 1.5px solid var(--line); border-radius: 10px; }
+  input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--tint); }
+  input.bad { border-color: var(--err); }
+  .help { font-size: .88rem; color: var(--muted); margin: 6px 0 0; }
+  .pw { position: relative; }
+  .pw input { padding-right: 76px; }
+  .pw button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: inherit; font-size: .88rem; font-weight: 700; color: var(--primary); background: none; border: 0; padding: 8px 10px; cursor: pointer; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  details.more { margin-top: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  details.more summary { cursor: pointer; font-weight: 700; color: var(--primary); padding: 10px 0; }
+
+  /* DP picker */
+  .dp-results { margin-top: 8px; max-height: 260px; overflow-y: auto; border: 1.5px solid var(--line); border-radius: 10px; background: var(--field); }
+  .dp-results button { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 12px 14px; font: inherit; text-align: left; color: var(--text); background: none; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .dp-results button:last-child { border-bottom: 0; }
+  .dp-results button small { color: var(--muted); flex: none; }
+  .dp-results .empty { padding: 12px 14px; color: var(--muted); }
+  .dp-chosen { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--ok-soft); border: 1.5px solid var(--ok); }
+  .dp-chosen button { font: inherit; font-weight: 700; color: var(--primary); background: none; border: 0; cursor: pointer; padding: 6px; }
+
+  /* People */
+  .person { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .person:last-child { border-bottom: 0; }
+  .avatar { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; background: var(--ai); }
+  .person .nm { flex: 1; font-weight: 600; }
+  .person .acts { display: flex; gap: 4px; }
+  .person .acts button { font: inherit; font-size: .9rem; font-weight: 700; padding: 8px 10px; border-radius: 8px; border: 1.5px solid var(--line); background: none; color: var(--primary); cursor: pointer; }
+  .person .acts button.rm { color: var(--err); }
+
+  /* Steps (how-to) */
+  ol.steps { margin: 8px 0 0; padding-left: 0; list-style: none; counter-reset: st; }
+  ol.steps li { position: relative; padding: 8px 0 8px 40px; counter-increment: st; }
+  ol.steps li::before { content: counter(st); position: absolute; left: 0; top: 7px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: .85rem; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+  code, .k { font-family: ui-monospace, Menlo, monospace; font-size: .9em; background: var(--tint); padding: 1px 6px; border-radius: 5px; }
+
+  /* Messages */
+  .note { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: .96rem; }
+  .note.ok { background: var(--ok-soft); color: var(--text); border-left: 4px solid var(--ok); }
+  .note.err { background: var(--err-soft); color: var(--text); border-left: 4px solid var(--err); }
+  .note.info { background: var(--tint); color: var(--text); border-left: 4px solid var(--primary); }
+  .toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 14px 18px; border-radius: 12px; background: var(--sumi); color: #fff; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+  @media (prefers-color-scheme: dark) { .toast { background: #F3F1E8; color: #16161E; } }
+  footer { text-align: center; font-size: .85rem; color: var(--muted); margin-top: 24px; }
+  footer button { font: inherit; color: var(--muted); text-decoration: underline; background: none; border: 0; cursor: pointer; }
+  body.no-nav .toast, body.typing .toast { bottom: 20px; }
+  @media (max-width: 360px) { .tiles { grid-template-columns: 1fr; } .two { grid-template-columns: 1fr; } }
+
+  @font-face { font-family: "Shippori Mincho"; font-weight: 700; font-display: swap; src: url(fonts/mincho-latin.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+  @font-face { font-family: "Shippori Mincho"; font-weight: 700; font-display: swap; src: url(fonts/mincho-kabu.woff2) format("woff2"); unicode-range: U+682A; }
+  .opt-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .opt-row:last-of-type { border-bottom: 0; }
+  .opt-row input { width: 22px; height: 22px; min-height: 0; margin: 2px 0 0; accent-color: var(--primary); flex: none; }
+  .person .acts button.ed { color: var(--text); }
+  #statusBox { cursor: pointer; }
+  header.top .in { padding-top: 18px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2M16 7l3 3M18.5 4.5l2 2"/></symbol>
+  <symbol id="i-add" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7M19 8v6M16 11h6"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M1.5 21c0-3.9 3.4-7 7.5-7s7.5 3.1 7.5 7M16 4.5a4 4 0 0 1 0 7M18 14.5c2.6.8 4.5 3.3 4.5 6.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="in">
+    <div class="seal" aria-hidden="true">株</div>
+    <div><h1>IPO Helper</h1><p>Applies on MeroShare for your family, by itself</p></div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ HOME ============ -->
+  <section id="v-home" class="view">
+    <div id="statusBox" class="status"><span class="dot"></span><div><b id="statusTitle">Loading…</b><small id="statusSub"></small></div></div>
+
+    <div class="card hidden" id="setupCard">
+      <h2 style="margin-top:0">Finish setting up</h2>
+      <p class="sub" style="margin-bottom:4px">A few steps, and then it works by itself.</p>
+      <ol class="check" id="checklist"></ol>
+    </div>
+
+    <div class="card" id="upcomingCard">
+      <div class="res-head"><h3 style="margin:0">Coming up</h3><small class="help" id="upcomingWhen" style="margin:0"></small></div>
+      <div id="upcoming"></div>
+    </div>
+
+    <button class="btn" id="checkBtn"><svg class="i"><use href="#i-play"/></svg>Check now</button>
+    <p class="help" style="text-align:center">Logs in to everyone and looks at open issues, without applying.</p>
+    <div id="checkMsg"></div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin-top:0">What it does by itself</h3>
+      <p class="help" style="font-size:.95rem">Every hour from 9 AM it checks MeroShare from this phone. On the <b id="modeText">last day</b> of an IPO or FPO it applies for <b>10 kitta</b>; for right shares, the <b>full amount</b>. Mutual funds and debentures are skipped. If the phone is offline, it applies as soon as the internet is back. You get a notification each time.</p>
+    </div>
+  </section>
+
+  <!-- ============ UPDATES ============ -->
+  <section id="v-updates" class="view hidden">
+    <h2>Updates</h2>
+    <p class="sub">What happened each time the app checked.</p>
+    <div id="latest"></div>
+    <div class="card hidden" id="histCard"><h3 style="margin-top:0">Earlier</h3><div id="history"></div></div>
+  </section>
+
+  <!-- ============ FAMILY ============ -->
+  <section id="v-family" class="view hidden">
+    <h2>Family</h2>
+    <p class="sub">The app applies for everyone here. Their details stay on this phone, encrypted.</p>
+    <div class="card" id="peopleList"></div>
+    <button class="btn" data-go="person">+ Add a person</button>
+  </section>
+
+  <!-- ============ ADD / EDIT PERSON ============ -->
+  <section id="v-person" class="view hidden">
+    <button class="back" data-go="family"><svg class="i"><use href="#i-back"/></svg>Family</button>
+    <h2 id="personTitle">Add a person</h2>
+    <p class="sub">The same details they use to log in to MeroShare.</p>
+    <div class="card">
+      <input type="hidden" id="pId">
+      <label class="f" for="pName" style="margin-top:0">Name</label>
+      <input id="pName" placeholder="e.g. Mom" autocomplete="off">
+
+      <label class="f" for="pDpSearch">DP (where the DEMAT account is)</label>
+      <div id="dpPick">
+        <input id="pDpSearch" type="search" placeholder="Type to search, e.g. NIC, Global, Sunrise" autocomplete="off">
+        <div class="dp-results" id="dpResults"></div>
+        <p class="help">It's the company you pick on the MeroShare login screen. <button class="back" id="dpRefresh" style="display:inline;margin:0;padding:0">Refresh list</button></p>
+      </div>
+      <div id="dpChosen" class="dp-chosen hidden"><span id="dpChosenName"></span><button type="button" id="dpChange">Change</button></div>
+      <details class="more" id="boidBox">
+        <summary>Don't know the DP? Use the BOID</summary>
+        <label class="f" for="pBoid" style="margin-top:4px">16-digit BOID</label>
+        <input id="pBoid" inputmode="numeric" placeholder="1301370001234567" autocomplete="off">
+        <p class="help">On the DEMAT form, in the bank SMS, or under <b>My Details</b> in MeroShare. Starts with 130.</p>
+      </details>
+      <input type="hidden" id="pDp">
+
+      <label class="f" for="pUser">MeroShare username</label>
+      <input id="pUser" autocomplete="off" spellcheck="false">
+
+      <label class="f" for="pPass">MeroShare password</label>
+      <div class="pw"><input id="pPass" type="password" autocomplete="new-password"><button type="button" data-eye="pPass">Show</button></div>
+
+      <div class="two">
+        <div><label class="f" for="pPin">4-digit PIN</label><input id="pPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>
+        <div><label class="f" for="pCrn">CRN number</label><input id="pCrn" autocomplete="off" spellcheck="false"></div>
+      </div>
+      <p class="help">The PIN is the one you type when applying for an IPO. The CRN is under <b>My Details → Bank</b> in MeroShare, or ask the bank.</p>
+
+      <details class="more">
+        <summary>More options (optional)</summary>
+        <label class="f" for="pBank">Bank name <span class="opt">(only if more than one bank is linked)</span></label>
+        <input id="pBank" placeholder="e.g. Nabil">
+        <label class="f" for="pRightMax">Most kitta for a right share <span class="opt">(empty = full amount)</span></label>
+        <input id="pRightMax" inputmode="numeric" placeholder="No limit">
+      </details>
+
+      <button class="btn" id="pSave">Save</button>
+      <div id="pMsg"></div>
+    </div>
+  </section>
+
+  <!-- ============ CHANGE PASSWORD ============ -->
+  <section id="v-password" class="view hidden">
+    <button class="back" data-go="family"><svg class="i"><use href="#i-back"/></svg>Family</button>
+    <h2>Change a password</h2>
+    <p class="sub">First change it on MeroShare, then type the <b>same new password</b> here.</p>
+    <div class="card">
+      <label class="f" for="pwPerson" style="margin-top:0">Whose password?</label>
+      <select id="pwPerson"></select>
+      <label class="f" for="pwNew">New MeroShare password</label>
+      <div class="pw"><input id="pwNew" type="password" autocomplete="new-password"><button type="button" data-eye="pwNew">Show</button></div>
+      <label class="f" for="pwNew2">Type it once more</label>
+      <div class="pw"><input id="pwNew2" type="password" autocomplete="new-password"><button type="button" data-eye="pwNew2">Show</button></div>
+      <button class="btn" id="pwSave">Save new password</button>
+      <div id="pwMsg"></div>
+    </div>
+    <a class="btn ghost" href="https://meroshare.cdsc.com.np">Open MeroShare to change it ↗</a>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="v-settings" class="view hidden">
+    <h2>Settings</h2>
+
+    <div class="card">
+      <h3 style="margin-top:0">When to apply</h3>
+      <label class="opt-row"><input type="radio" name="mode" value="LAST_DAY"><span><b>On the last day</b> (recommended)<br><small class="help">Your money is blocked for the shortest time.</small></span></label>
+      <label class="opt-row"><input type="radio" name="mode" value="DAY_BEFORE"><span><b>One day before closing</b><br><small class="help">Safer if your phone is often off or offline. Same lottery, same chances.</small></span></label>
+      <div id="modeMsg"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Notifications</h3>
+      <p class="help" id="notifState"></p>
+      <button class="btn" id="notifBtn">Allow notifications</button>
+      <button class="btn ghost" id="notifTest">Send a test notification</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Run in the background</h3>
+      <p class="help" id="battState"></p>
+      <button class="btn" id="battBtn">Allow</button>
+      <div id="oemTip"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">About</h3>
+      <p class="help">Everything stays on this phone. Logins are encrypted with a key that never leaves the phone and are not included in backups. The app talks only to MeroShare.</p>
+      <p class="help" id="versionLine"></p>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom" id="nav" aria-label="Main">
+  <div class="in">
+    <button data-go="home"><span class="pill"><svg class="i"><use href="#i-home"/></svg></span>Home</button>
+    <button data-go="updates"><span class="pill"><svg class="i"><use href="#i-bell"/></svg><span class="badge hidden" id="navBadge"></span></span>Updates</button>
+    <button data-go="family"><span class="pill"><svg class="i"><use href="#i-people"/></svg></span>Family</button>
+    <button data-go="settings"><span class="pill"><svg class="i"><use href="#i-gear"/></svg></span>Settings</button>
+  </div>
+</nav>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const N = window.IPO;  // the phone side (MainActivity.Bridge)
+  let D = { people: [], state: { history: [], issues: {}, status: {}, mode: "LAST_DAY" } };
+
+  // ---------- helpers
+  function note(id, text, kind = "ok") { $(id).innerHTML = text ? `<div class="note ${kind}">${text}</div>` : ""; }
+  let toastTimer;
+  function toast(text) {
+    let t = document.querySelector(".toast");
+    if (!t) { t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+    t.textContent = text; t.classList.remove("hidden");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 3500);
+  }
+  function call(name, ...args) { try { return JSON.parse(N[name](...args)); } catch (e) { return { ok: false, error: String(e.message || e) }; } }
+  const waiting = {};
+  window.onNative = (id, result) => { const f = waiting[id]; delete waiting[id]; if (f) f(result); };
+  function callAsync(name) { return new Promise((res) => { const id = name + Date.now() + Math.random(); waiting[id] = res; N[name](id); }); }
+  async function busy(btn, fn) {
+    const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>Please wait…`;
+    try { await fn(); } finally { btn.disabled = false; btn.innerHTML = label; }
+  }
+  const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }); };
+  const fmtDay = (iso) => { const d = new Date(iso + "T12:00:00"); return isNaN(d) ? iso : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); };
+  function ago(iso) {
+    const mins = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (isNaN(mins)) return "";
+    if (mins < 1) return "just now"; if (mins < 60) return `${mins} min ago`;
+    if (mins < 1440) return `${Math.round(mins / 60)} hours ago`; return fmtTime(iso);
+  }
+  const nepalToday = () => new Date(Date.now() + (5 * 60 + 45) * 60000).toISOString().slice(0, 10);
+
+  document.addEventListener("input", (e) => { if (e.target.classList) e.target.classList.remove("bad"); });
+  document.addEventListener("click", (e) => {
+    const eye = e.target.closest("[data-eye]");
+    if (eye) { const inp = $(eye.dataset.eye); const show = inp.type === "password"; inp.type = show ? "text" : "password"; eye.textContent = show ? "Hide" : "Show"; }
+    const go = e.target.closest("[data-go]");
+    if (go) { if (go.dataset.go === "person") editPerson(null); location.hash = go.dataset.go; }
+  });
+
+  // ---------- routing
+  const views = ["home", "updates", "family", "person", "password", "settings"];
+  function route() {
+    let v = location.hash.slice(1) || "home"; if (!views.includes(v)) v = "home";
+    views.forEach((x) => $("v-" + x).classList.toggle("hidden", x !== v));
+    const tab = v === "person" || v === "password" ? "family" : v;
+    document.querySelectorAll("#nav button").forEach((b) => b.dataset.go === tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+    document.body.classList.toggle("sub", v !== "home");
+    if (v === "updates") markSeen();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener("hashchange", route);
+  window.goBack = () => {
+    const v = location.hash.slice(1) || "home";
+    if (v === "person" || v === "password") { location.hash = "family"; return true; }
+    if (v !== "home") { location.hash = "home"; return true; }
+    return false;
+  };
+
+  // ---------- data
+  window.reload = function reload() {
+    D = call("getData");
+    D.state = D.state || {}; D.state.history = D.state.history || []; D.state.issues = D.state.issues || {}; D.state.status = D.state.status || {};
+    render();
+  };
+  const people = () => D.people || [];
+  const nameOf = (id) => (people().find((p) => p.id === id) || {}).name || "?";
+
+  function render() { renderHome(); renderUpdates(); renderFamily(); renderSettings(); updateBadge(); }
+
+  // ---------- home
+  function renderHome() {
+    const ps = people(), n = ps.length, last = D.state.history[0];
+    const failed = ps.filter((p) => p.loginFailed);
+    const box = $("statusBox");
+    if (!n) { box.className = "status warn"; $("statusTitle").textContent = "Not running yet"; $("statusSub").textContent = "Add your family to start."; }
+    else if (failed.length) { box.className = "status bad"; $("statusTitle").textContent = `Login failed: ${failed.map((p) => p.name).join(", ")}`; $("statusSub").textContent = "Update the password to start again. Tap here."; box.onclick = () => (location.hash = "password"); }
+    else if (last && !last.ok) { box.className = "status bad"; $("statusTitle").textContent = "Problem: tap to see"; $("statusSub").textContent = last.problems[0] || ""; box.onclick = () => (location.hash = "updates"); }
+    else { box.className = "status"; $("statusTitle").textContent = `Active for ${n} ${n === 1 ? "person" : "people"}`; $("statusSub").textContent = last ? "Last checked " + ago(last.time) : "First check today from 9 AM, or tap Check now"; box.onclick = () => (location.hash = "updates"); }
+
+    const steps = [
+      { t: "Add yourself and your family", done: n > 0, go: "person" },
+      { t: "Allow notifications", done: !!D.canNotify, go: "settings" },
+      { t: "Let it run in the background", done: !!D.batteryUnrestricted, go: "settings" },
+      { t: "Run a check", done: D.state.history.some((r) => r.kind === "check" && r.ok), act: "check" },
+    ];
+    $("setupCard").classList.toggle("hidden", steps.every((s) => s.done));
+    let marked = false;
+    $("checklist").innerHTML = steps.map((s, i) => {
+      const next = !s.done && !marked; if (next) marked = true;
+      const btn = s.done ? "" : s.go ? `<button data-go="${s.go}">${next ? "Start →" : "Open"}</button>` : `<button onclick="document.getElementById('checkBtn').click()">${next ? "Start →" : "Run"}</button>`;
+      return `<li class="${s.done ? "done" : next ? "next" : ""}"><span class="n">${s.done ? "✓" : i + 1}</span><span class="t">${s.t}</span>${btn}</li>`;
+    }).join("");
+
+    // coming up: open issues the app applies for, with what happens per person
+    const today = nepalToday();
+    const items = Object.values(D.state.issues).filter((i) => i.kind && (!i.close || i.close >= today)).sort((a, b) => (a.close || "").localeCompare(b.close || ""));
+    $("upcomingWhen").textContent = D.state.lastFullRun ? "as of " + ago(D.state.lastFullRun) : "";
+    $("upcoming").innerHTML = items.length ? items.map((i) => {
+      const who = ps.map((p) => { const s = (D.state.status[p.id] || {})[i.scrip]; return s ? `${esc(p.name)}: ${esc(s.note)}` : null; }).filter(Boolean);
+      const closesToday = i.close === today;
+      return `<div class="ipo"><div class="top"><b>${esc(i.scrip)}</b><span class="chip ${closesToday ? "warn" : "info"}">${i.close ? (closesToday ? "Closes today" : "Closes " + esc(fmtDay(i.close))) : ""}</span></div>
+        <div class="co">${esc(i.company)} · ${esc(i.kind === "RIGHT" ? "Right share" : i.kind)}</div><div class="who">${who.join("<br>")}</div></div>`;
+    }).join("") : `<p class="help">${D.state.lastFullRun ? "No open IPOs, FPOs or right shares right now." : "Nothing checked yet. Tap Check now to look."}</p>`;
+    $("modeText").textContent = D.state.mode === "DAY_BEFORE" ? "day before the last day" : "last day";
+  }
+
+  $("checkBtn").onclick = (e) => busy(e.currentTarget, async () => {
+    if (!people().length) { note("checkMsg", "Add a person first.", "err"); return; }
+    note("checkMsg", "Checking… this takes about a minute.", "info");
+    const r = await callAsync("runCheck");
+    reload();
+    if (!r.ok) return note("checkMsg", esc(r.error), "err");
+    note("checkMsg", r.record.ok ? "<b>Check finished ✓</b> Everything logged in. See <a href='#updates'>Updates</a> for details."
+      : `<b>Problem:</b> ${esc(r.record.problems[0])} <a href='#updates'>Details</a>`, r.record.ok ? "ok" : "err");
+  });
+
+  // ---------- updates
+  const list = (items, cls) => items.length ? `<ul class="lst ${cls}">${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  function chipFor(r) {
+    if (!r.ok) return `<span class="chip bad">Problem</span>`;
+    if (r.applied.length && r.kind !== "check") return `<span class="chip ok">Applied</span>`;
+    if (r.warnings.length) return `<span class="chip warn">Attention</span>`;
+    return `<span class="chip ok">All good</span>`;
+  }
+  function body(r) {
+    const accts = (r.people || []).map((p) => (p.ok ? "✓ " : "✗ ") + p.name + (p.error ? ": " + p.error : ": logged in"));
+    const lines = (r.people || []).flatMap((p) => p.lines.map((l) => `${p.name} · ${l}`));
+    return (r.problems.length ? `<p class="sec-t">Problems</p>${list(r.problems, "bad")}` : "")
+      + (r.applied.length ? `<p class="sec-t">${r.kind === "check" ? "Would apply (test)" : "Applied"}</p>${list(r.applied, "ok")}` : "")
+      + (r.warnings.length ? `<p class="sec-t">Needs attention</p>${list(r.warnings, "warn")}` : "")
+      + `<p class="sec-t">Accounts</p>${list(accts, "")}`
+      + (lines.length ? `<p class="sec-t">Open issues</p>${list(lines, "")}` : "");
+  }
+  const kindName = (k) => (k === "check" ? "Check" : "Automatic");
+  function renderUpdates() {
+    const rs = D.state.history;
+    if (!rs.length) { $("latest").innerHTML = `<div class="card"><b>Nothing yet</b><p class="help">Results appear here after the first check. Tap <a href="#home">Check now</a> on Home.</p></div>`; $("histCard").classList.add("hidden"); return; }
+    const r = rs[0];
+    $("latest").innerHTML = `<div class="card"><div class="res-head"><div><span class="when">${kindName(r.kind)}</span><small>${esc(fmtTime(r.time))}</small></div>${chipFor(r)}</div>${body(r)}</div>`;
+    $("histCard").classList.toggle("hidden", rs.length < 2);
+    $("history").innerHTML = rs.slice(1).map((x) => `<details class="hist"><summary><span><b>${kindName(x.kind)}</b><br><small class="help" style="margin:0">${esc(fmtTime(x.time))}</small></span>${chipFor(x)}</summary><div class="body">${body(x)}</div></details>`).join("");
+  }
+  const seen = () => { try { return localStorage.getItem("seen") || ""; } catch { return ""; } };
+  function markSeen() { const r = D.state.history[0]; if (r) try { localStorage.setItem("seen", r.time); } catch {} updateBadge(); }
+  function updateBadge() {
+    const r = D.state.history[0];
+    $("navBadge").classList.toggle("hidden", !(r && r.kind !== "check" && (!r.ok || r.applied.length) && r.time !== seen() && location.hash !== "#updates"));
+  }
+
+  // ---------- family
+  function renderFamily() {
+    const ps = people();
+    $("peopleList").innerHTML = ps.length ? "" : `<p class="help" style="margin:0">Nobody added yet.</p>`;
+    for (const p of ps) {
+      const row = document.createElement("div"); row.className = "person";
+      row.innerHTML = `<span class="avatar">${esc(p.name[0] || "?")}</span><span class="nm">${esc(p.name)}${p.loginFailed ? `<br><small class="help" style="color:var(--err);margin:0">Login failed: update password</small>` : ""}</span>
+        <span class="acts"><button class="ed">Edit</button><button class="pw-btn">Password</button><button class="rm">✕</button></span>`;
+      row.querySelector(".ed").onclick = () => { editPerson(p); location.hash = "person"; };
+      row.querySelector(".pw-btn").onclick = () => { location.hash = "password"; $("pwPerson").value = p.id; };
+      row.querySelector(".rm").onclick = () => {
+        if (!confirm(`Remove ${p.name}? The app will stop applying for them and forget their details.`)) return;
+        const r = call("removePerson", p.id); if (r.ok) { toast(`${p.name} removed`); reload(); }
+      };
+      $("peopleList").appendChild(row);
+    }
+    const sel = $("pwPerson"), keep = sel.value;
+    sel.innerHTML = ps.length ? ps.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("") : `<option value="">Nobody added yet</option>`;
+    if (ps.some((p) => p.id === keep)) sel.value = keep;
+  }
+
+  // ---------- DP picker
+  let dps = [];
+  try { dps = JSON.parse(N.dpList()); } catch {}
+  const title = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  function renderDps() {
+    const q = $("pDpSearch").value.trim().toLowerCase();
+    if (!dps.length) { $("dpResults").innerHTML = `<div class="empty">List not loaded. Tap Refresh list, or type the 5-digit DP code.</div>`; return; }
+    const shown = dps.filter((d) => !q || d.name.toLowerCase().includes(q) || String(d.code).startsWith(q));
+    $("dpResults").innerHTML = shown.length ? shown.map((d) => `<button type="button" data-dp="${esc(d.code)}"><span>${esc(title(d.name))}</span><small>${esc(d.code)}</small></button>`).join("")
+      : `<div class="empty">Nothing matches "${esc(q)}".</div>`;
+  }
+  function chooseDp(code) {
+    const d = dps.find((x) => String(x.code) === String(code));
+    $("pDp").value = code;
+    $("dpChosenName").innerHTML = `✓ <b>${esc(d ? title(d.name) : "DP " + code)}</b> <small class="help">(${esc(code)})</small>`;
+    $("dpPick").classList.add("hidden"); $("boidBox").classList.add("hidden"); $("dpChosen").classList.remove("hidden");
+  }
+  function clearDp() {
+    $("pDp").value = ""; $("pDpSearch").value = ""; $("pBoid").value = "";
+    $("dpPick").classList.remove("hidden"); $("boidBox").classList.remove("hidden"); $("dpChosen").classList.add("hidden");
+    renderDps();
+  }
+  $("dpResults").addEventListener("click", (e) => { const b = e.target.closest("[data-dp]"); if (b) chooseDp(b.dataset.dp); });
+  $("dpChange").onclick = clearDp;
+  $("pDpSearch").addEventListener("input", renderDps);
+  $("pBoid").addEventListener("input", () => { const b = $("pBoid").value.replace(/\D/g, ""); if (b.length === 16) chooseDp(b.slice(3, 8)); });
+  $("dpRefresh").onclick = async () => {
+    toast("Getting the latest DP list…");
+    const r = await callAsync("refreshDps");
+    if (r.ok && r.dps.length) { dps = r.dps.sort((a, b) => a.name.localeCompare(b.name)); renderDps(); toast(`${dps.length} DPs loaded`); }
+    else toast("Couldn't refresh: " + (r.error || "no internet"));
+  };
+  renderDps();
+
+  // ---------- add / edit person
+  function editPerson(p) {
+    $("personTitle").textContent = p ? `Edit ${p.name}` : "Add a person";
+    $("pId").value = p ? p.id : "";
+    $("pName").value = p ? p.name : ""; $("pUser").value = p ? p.username : ""; $("pCrn").value = p ? p.crn : "";
+    $("pBank").value = p && p.bank ? p.bank : ""; $("pRightMax").value = p && p.rightMaxKitta ? p.rightMaxKitta : "";
+    $("pPass").value = ""; $("pPin").value = "";
+    $("pPass").placeholder = p ? "Unchanged (type to change)" : ""; $("pPin").placeholder = p ? "Unchanged" : "";
+    note("pMsg", "");
+    clearDp(); if (p) chooseDp(p.dp);
+  }
+  $("pSave").onclick = (e) => busy(e.currentTarget, async () => {
+    const editing = !!$("pId").value;
+    const acc = { id: $("pId").value, name: $("pName").value.trim(), dp: $("pDp").value || (/^\d{5}$/.test($("pDpSearch").value.trim()) ? $("pDpSearch").value.trim() : ""),
+      username: $("pUser").value.trim(), password: $("pPass").value, pin: $("pPin").value.trim(), crn: $("pCrn").value.trim(),
+      bank: $("pBank").value.trim(), rightMaxKitta: $("pRightMax").value.replace(/\D/g, "") };
+    const missing = [];
+    if (!acc.name) missing.push(["pName", "a name"]);
+    if (!acc.dp) missing.push(["pDpSearch", "the DP"]);
+    if (!acc.username) missing.push(["pUser", "the username"]);
+    if (!acc.password && !editing) missing.push(["pPass", "the password"]);
+    if (acc.pin ? !/^\d{4}$/.test(acc.pin) : !editing) missing.push(["pPin", "the 4-digit PIN"]);
+    if (!acc.crn) missing.push(["pCrn", "the CRN"]);
+    if (missing.length) { missing.forEach(([id]) => $(id).classList.add("bad")); $(missing[0][0]).focus(); return note("pMsg", "Please fill in " + missing.map((m) => m[1]).join(", ") + ".", "err"); }
+    const r = call("savePerson", JSON.stringify(acc));
+    if (!r.ok) return note("pMsg", esc(r.error), "err");
+    reload();
+    toast(`${acc.name} saved ✓`);
+    if (!editing) { editPerson(null); note("pMsg", `<b>${esc(acc.name)} saved ✓</b><br>Add another person, or go to <a href="#home">Home</a> and tap Check now.`, "ok"); }
+    else location.hash = "family";
+  });
+
+  // ---------- password
+  $("pwSave").onclick = (e) => busy(e.currentTarget, async () => {
+    const id = $("pwPerson").value, p = $("pwNew").value;
+    if (!id) return note("pwMsg", "Add a person first.", "err");
+    if (!p) return note("pwMsg", "Please type the new password.", "err");
+    if (p !== $("pwNew2").value) return note("pwMsg", "The two passwords are different. Please type them again.", "err");
+    const r = call("setPassword", id, p);
+    if (!r.ok) return note("pwMsg", esc(r.error), "err");
+    $("pwNew").value = $("pwNew2").value = "";
+    reload();
+    note("pwMsg", `<b>Saved ✓</b><br>${esc(nameOf(id))}'s new password will be used from now on.`, "ok");
+  });
+
+  // ---------- settings
+  function renderSettings() {
+    document.querySelectorAll("input[name=mode]").forEach((r) => (r.checked = r.value === (D.state.mode || "LAST_DAY")));
+    $("notifState").textContent = D.canNotify ? "On ✓ You'll be told when it applies, when something goes wrong, and before a password expires." : "Off. Turn on to be told when it applies or needs you.";
+    $("notifBtn").classList.toggle("hidden", !!D.canNotify);
+    $("notifTest").classList.toggle("hidden", !D.canNotify);
+    $("battState").textContent = D.batteryUnrestricted ? "Allowed ✓ Android won't stop the app from checking in the background." : "Android may pause the app to save battery and miss the last day. Tap Allow and choose Allow / Unrestricted.";
+    $("battBtn").classList.toggle("hidden", !!D.batteryUnrestricted);
+    const m = (D.manufacturer || "").toLowerCase();
+    const oem = /xiaomi|redmi|poco/.test(m) ? "Xiaomi/Redmi/POCO: also open <b>App info → Autostart</b> and turn it on, and set <b>Battery saver → No restrictions</b>."
+      : /samsung/.test(m) ? "Samsung: in <b>App info → Battery</b>, choose <b>Unrestricted</b>, and make sure IPO Helper isn't in <b>Sleeping apps</b>."
+      : /oppo|realme|oneplus|vivo|iqoo/.test(m) ? "In <b>App info → Battery</b>, allow <b>background activity</b> and <b>auto launch</b>."
+      : /huawei|honor/.test(m) ? "In <b>App launch</b> settings, set IPO Helper to <b>Manage manually</b> and allow all three options." : "";
+    $("oemTip").innerHTML = oem ? `<div class="note info">${oem}<br><button class="btn ghost" id="appInfo" style="margin-top:10px">Open App info</button></div>` : "";
+    if (oem) $("appInfo").onclick = () => N.openAppSettings();
+    $("versionLine").textContent = "Version " + (D.version || "");
+  }
+  document.querySelectorAll("input[name=mode]").forEach((r) => r.onchange = () => {
+    const res = call("setMode", r.value);
+    if (res.ok) { reload(); note("modeMsg", r.value === "DAY_BEFORE" ? "Saved ✓ It will apply one day before closing." : "Saved ✓ It will apply on the last day.", "ok"); }
+  });
+  $("notifBtn").onclick = () => N.askNotifications();
+  $("notifTest").onclick = () => { N.testNotification(); toast("Sent. Check your notifications."); };
+  $("battBtn").onclick = () => N.askBattery();
+
+  // Hide the bottom bar while typing, so it never covers the field above the keyboard.
+  const TYPING = "input:not([type=radio]):not([type=checkbox]):not([type=hidden])";
+  document.addEventListener("focusin", (e) => { if (e.target.matches(TYPING)) document.body.classList.add("typing"); });
+  document.addEventListener("focusout", () => setTimeout(() => { if (!document.activeElement || !document.activeElement.matches(TYPING)) document.body.classList.remove("typing"); }, 100));
+  document.addEventListener("focusin", (e) => { if (e.target.matches(TYPING)) setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300); });
+
+  route(); reload();
+})();
+</script>
+
+</body>
+</html>
