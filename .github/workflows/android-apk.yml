@@ -68,10 +68,19 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk ipo-helper.apk
           sha256sum ipo-helper.apk | tee ipo-helper.apk.sha256
           tag="app-v1.0.${{ github.run_number }}"
-          gh release create "$tag" ipo-helper.apk ipo-helper.apk.sha256 \
-            --title "IPO Helper 1.0.${{ github.run_number }}" \
-            --notes "Android app. Download ipo-helper.apk on your phone and open it to install or update." \
-            --latest
+          # GitHub's API sometimes has brief server errors: retry, and finish a half-created release.
+          for i in 1 2 3 4 5; do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" ipo-helper.apk ipo-helper.apk.sha256 --clobber && gh release edit "$tag" --latest && exit 0
+            else
+              gh release create "$tag" ipo-helper.apk ipo-helper.apk.sha256 \
+                --title "IPO Helper 1.0.${{ github.run_number }}" \
+                --notes "Android app. Download ipo-helper.apk on your phone and open it to install or update." \
+                --latest && exit 0
+            fi
+            echo "GitHub error, trying again in $((i * 20))s"; sleep $((i * 20))
+          done
+          exit 1
       - name: Remove the key file
         if: always() && steps.seed.outputs.ready == 'true'
         run: rm -rf keystore
